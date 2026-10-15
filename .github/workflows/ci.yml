@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - uses: jdx/mise-action@v3 # TODO pin to SHA
+      - uses: jdx/mise-action@v4 # TODO pin to SHA
       - run: npm ci
       - run: npm run typecheck
       - run: npm run test:coverage
