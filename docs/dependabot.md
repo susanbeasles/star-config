@@ -18,14 +18,19 @@ A pull request is merged only when all of these conditions hold:
   permissions, and the merge implementation itself cannot change automatically.
 - The latest CI run for the exact head succeeds, including every job, and all
   reported checks/statuses succeed. The head includes the current default branch.
-- No active review requests changes. GitHub accepts the merge under current
-  repository rules. The merge request includes the checked head SHA to reject a
-  concurrent branch update.
+- No active review requests changes, the default branch is unprotected, and the
+  PR still has the checked head. The workflow fast-forwards the default branch to
+  that exact tested commit with `force: false`. If the base advances concurrently,
+  GitHub rejects the update instead of creating an untested merge combination.
+  GitHub marks the PR merged once its commits are reachable from the base.
 
-Only one PR merges per invocation. Dependabot rebases remaining open PRs; they
-must pass CI again. Errors and unsupported changes remain unmerged and are
-visible in the workflow log. Run the workflow manually to retry after resolving
-a blocker. The automation does not bypass required reviews or branch rules.
+Only one PR merges per invocation. For trusted PRs behind the base, the workflow
+requests `@dependabot rebase`, once per head/base pair, even if stale CI fails or
+the branch conflicts. They must pass CI again. Errors and unsupported changes
+remain unmerged and are visible in the workflow log. Run the workflow manually
+to retry after resolving a blocker. A protected default branch stops automatic
+integration; enabling protection requires choosing an integration mode that
+enforces those rules. The automation never force-pushes or bypasses branch rules.
 
 PostgreSQL stays on major version 17. The image-only PostgreSQL 18 proposal also
 changes the data-directory convention and cannot migrate an existing named
