@@ -39,7 +39,7 @@ jobs:
       - name: Compress
         shell: bash
         run: gzip -9 -c "dist/${{ matrix.asset }}" > "dist/${{ matrix.asset }}.gz"
-      - uses: actions/attest-build-provenance@v3 # TODO pin to SHA
+      - uses: actions/attest-build-provenance@v4 # TODO pin to SHA
         with:
           subject-path: |
             dist/${{ matrix.asset }}
