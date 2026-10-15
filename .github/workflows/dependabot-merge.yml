@@ -1,0 +1,41 @@
+name: Dependabot merge
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: dependabot-merge
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    if: github.repository == 'susanbeasles/star-config'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+      checks: read
+      statuses: read
+    steps:
+      # Only the trusted default-branch automation is executed. No PR artifacts,
+      # PR checkout, dependency installation, or PR-controlled shell arguments.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: scripts/dependabot-merge.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+      - run: node scripts/dependabot-merge.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
