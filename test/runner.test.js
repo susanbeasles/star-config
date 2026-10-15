@@ -75,6 +75,23 @@ describe('configArgs', () => {
 });
 
 describe('buildArgs', () => {
+  it('finds TOML sections after earlier tables without interpreting regex characters', () => {
+    const step = {
+      tool: 'x',
+      args: { check: [] },
+      install: '',
+      config: {
+        local: ['pyproject.toml#tool.ruff'],
+        asset: 'configs/ruff.toml',
+        flag: () => ['--config', 'fallback'],
+      },
+    };
+    writeFileSync(path.join(dir, 'pyproject.toml'), '[project]\nname = "test"\n[tool.ruff.lint]\n');
+    expect(configArgs(step, dir)).toEqual([]);
+    step.config.local = ['pyproject.toml#tool.*'];
+    writeFileSync(path.join(dir, 'pyproject.toml'), '[tool.ruff]\n');
+    expect(configArgs(step, dir)).toEqual(['--config', 'fallback']);
+  });
   it('returns null when a step has no args for the mode', () => {
     expect(
       buildArgs({ tool: 'x', args: { fix: null, check: [] }, install: '' }, 'fix', dir),

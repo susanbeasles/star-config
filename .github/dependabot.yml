@@ -6,6 +6,10 @@ updates:
       interval: weekly
     cooldown:
       default-days: 7
+    # Keep the supported TypeScript peer range from src/tools.js.
+    ignore:
+      - dependency-name: typescript
+        versions: [">=6.1.0"]
     groups:
       npm-minor-patch:
         update-types: [minor, patch]
@@ -15,9 +19,19 @@ updates:
       interval: weekly
     cooldown:
       default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
   - package-ecosystem: docker-compose
     directory: "/configs"
     schedule:
       interval: weekly
     cooldown:
       default-days: 7
+    # PostgreSQL majors require an explicit data migration, not an image-only bump.
+    ignore:
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
+    groups:
+      containers-minor-patch:
+        update-types: [minor, patch]

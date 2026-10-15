@@ -33,7 +33,13 @@ export async function formatGenerated(rel, content) {
     return content;
   }
   const overrides = (config.overrides ?? [])
-    .filter((o) => [o.files].flat().some((g) => rel.endsWith(String(g).replace('*', ''))))
+    .filter((o) =>
+      // Shipped overrides are extension globs (e.g. *.yaml), including dotfiles.
+      [o.files].flat().some((g) => {
+        const glob = String(g);
+        return rel.endsWith(glob.startsWith('*') ? glob.slice(1) : glob);
+      }),
+    )
     .reduce((acc, o) => ({ ...acc, ...o.options }), {});
   const { overrides: _ignored, ...base } = config;
   return format(content, {

@@ -202,7 +202,7 @@ describe('test / build / audit', () => {
       repo.sh('git', ['add', '-A']);
       const res = repo.cli(['audit'], { STAR_SEMGREP_CONFIG: '.semgrep.yml' });
       repo.sh('git', ['rm', '-q', '-f', 'svc/danger.py']);
-      expect(res.status).toBe(1);
+      expect(res.status, out(res)).toBe(1);
       expect(out(res)).toMatch(/eval is forbidden/);
       expect(out(res)).toMatch(/sast:semgrep/);
     },
