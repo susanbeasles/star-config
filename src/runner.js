@@ -170,7 +170,9 @@ function hasSection(file, table) {
       return false;
     }
   }
-  return new RegExp(`^\\[${table.replaceAll('.', '\\.')}[.\\]]`, 'm').test(text);
+  return text
+    .split(/\r?\n/)
+    .some((line) => line.startsWith(`[${table}]`) || line.startsWith(`[${table}.`));
 }
 
 /**
