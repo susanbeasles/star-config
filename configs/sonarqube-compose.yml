@@ -30,7 +30,7 @@ services:
       retries: 30
       start_period: 60s
   db:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: sonar
       POSTGRES_PASSWORD: ${STAR_SONAR_DB_PASSWORD:?run via star-config sonar up}
