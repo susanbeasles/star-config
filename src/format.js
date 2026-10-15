@@ -10,7 +10,6 @@ import * as markdown from 'prettier/plugins/markdown';
 import * as typescript from 'prettier/plugins/typescript';
 import * as yaml from 'prettier/plugins/yaml';
 import { format } from 'prettier/standalone';
-import path from 'node:path';
 import config from '../configs/prettier.config.mjs';
 
 /** @type {Array<[RegExp, string]>} */
@@ -35,12 +34,11 @@ export async function formatGenerated(rel, content) {
   }
   const overrides = (config.overrides ?? [])
     .filter((o) =>
-      [o.files]
-        .flat()
-        .some(
-          (g) =>
-            path.matchesGlob(rel, String(g)) || path.matchesGlob(path.basename(rel), String(g)),
-        ),
+      // Shipped overrides are extension globs (e.g. *.yaml), including dotfiles.
+      [o.files].flat().some((g) => {
+        const glob = String(g);
+        return rel.endsWith(glob.startsWith('*') ? glob.slice(1) : glob);
+      }),
     )
     .reduce((acc, o) => ({ ...acc, ...o.options }), {});
   const { overrides: _ignored, ...base } = config;
