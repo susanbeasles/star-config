@@ -14,3 +14,6 @@ actionlint = "1.7.12"
 shellcheck = "0.11.0"
 shfmt = "3.14.1"
 bats = "1.13.0"
+# The integration fixture exercises Python and Docker even though this repo is JS.
+hadolint = "2.15.1"
+ruff = "0.17.0"
