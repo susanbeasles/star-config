@@ -71,7 +71,7 @@ function githubFixture() {
       workflow_runs: [run],
     },
     [`${root}/actions/runs/10/jobs?filter=latest&per_page=100`]: { total_count: 1, jobs: [job] },
-    [`${root}/branches/main`]: { commit: { sha: base } },
+    [`${root}/branches/main`]: { commit: { sha: base }, protected: false },
     [`${root}/compare/${base}...${head}`]: { status: 'ahead', behind_by: 0 },
     [`${root}/commits/${head}/check-runs?filter=latest&per_page=100`]: {
       total_count: 1,
@@ -79,12 +79,13 @@ function githubFixture() {
     },
     [`${root}/commits/${head}/status?per_page=100`]: { total_count: 0, statuses: [] },
     [`${root}/pulls/2/reviews?per_page=100`]: [],
+    [`${root}/issues/2/comments?per_page=100`]: [],
   };
   const writes = [];
   const api = async (route, options = {}) => {
     if (options.method) {
       writes.push({ route, ...options });
-      return { merged: true };
+      return { object: { sha: head } };
     }
     if (!Object.hasOwn(responses, route)) {
       throw new Error(`Unexpected route ${route}`);
@@ -95,14 +96,14 @@ function githubFixture() {
 }
 
 describe('autonomous merge gate', () => {
-  it('merges a fully passing bot update with an exact-head lease', async () => {
+  it('fast-forwards main to the exact tested commit without forcing', async () => {
     const f = githubFixture();
     expect(await reconcile(f)).toBe(2);
     expect(f.writes).toEqual([
       {
-        route: '/repos/example/repository/pulls/2/merge',
-        method: 'PUT',
-        body: { sha: f.head, merge_method: 'squash' },
+        route: '/repos/example/repository/git/refs/heads/main',
+        method: 'PATCH',
+        body: { sha: f.head, force: false },
       },
     ]);
   });
@@ -165,9 +166,9 @@ describe('autonomous merge gate', () => {
       },
     ],
     [
-      'base moved',
+      'protected base',
       (f) => {
-        f.responses[`${f.root}/compare/${f.base}...${f.head}`].behind_by = 1;
+        f.responses[`${f.root}/branches/main`].protected = true;
       },
     ],
     [
@@ -201,16 +202,57 @@ describe('autonomous merge gate', () => {
     expect(await reconcile(f)).toBeNull();
     expect(f.writes).toEqual([]);
   });
-  it('propagates a GitHub rules or concurrent-head rejection', async () => {
+  it('does not fall back when GitHub rejects a concurrent base update', async () => {
     const f = githubFixture();
     const api = f.api;
     f.api = (route, options) => {
       if (options?.method) {
-        throw new Error('GitHub 409: head changed');
+        throw new Error('GitHub 422: not a fast forward');
       }
       return api(route, options);
     };
-    await expect(reconcile(f)).rejects.toThrow('head changed');
+    await expect(reconcile(f)).rejects.toThrow('not a fast forward');
+    expect(f.writes).toEqual([]);
+  });
+  it('requests a rebase of a trusted stale PR even when CI fails or it conflicts', async () => {
+    const f = githubFixture();
+    f.pr.mergeable = false;
+    f.run.conclusion = 'failure';
+    f.responses[`${f.root}/compare/${f.base}...${f.head}`].behind_by = 1;
+    expect(await reconcile(f)).toBeNull();
+    expect(f.writes).toEqual([
+      {
+        route: `${f.root}/issues/2/comments`,
+        method: 'POST',
+        body: {
+          body: `@dependabot rebase\n\n<!-- dependabot-base-sync:${f.head}:${f.base} -->`,
+        },
+      },
+    ]);
+  });
+  it.each(['duplicate', 'truncated'])('does not repeat a %s rebase request', async (kind) => {
+    const f = githubFixture();
+    f.responses[`${f.root}/compare/${f.base}...${f.head}`].behind_by = 1;
+    f.responses[`${f.root}/issues/2/comments?per_page=100`] =
+      kind === 'duplicate'
+        ? [{ body: `<!-- dependabot-base-sync:${f.head}:${f.base} -->` }]
+        : Array.from({ length: 100 }, () => ({ body: '' }));
+    expect(await reconcile(f)).toBeNull();
+    expect(f.writes).toEqual([]);
+  });
+  it('rechecks the PR before publishing and refuses a replaced head', async () => {
+    const f = githubFixture();
+    const api = f.api;
+    let reads = 0;
+    f.api = async (route, options) => {
+      const value = await api(route, options);
+      if (route === `${f.root}/pulls/2` && ++reads === 2) {
+        value.head.sha = 'e'.repeat(40);
+      }
+      return value;
+    };
+    expect(await reconcile(f)).toBeNull();
+    expect(f.writes).toEqual([]);
   });
 });
 
