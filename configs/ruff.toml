@@ -1,0 +1,38 @@
+# star-config — Ruff (lint + format) for Python
+# Extend from a repo:  ruff.toml ->  extend = "node_modules/star-config/configs/ruff.toml"
+target-version = "py312"
+line-length = 100
+
+[lint]
+select = [
+  "E", "W",   # pycodestyle
+  "F",        # pyflakes
+  "I",        # isort
+  "B",        # bugbear
+  "UP",       # pyupgrade
+  "S",        # bandit (security)
+  "C90",      # mccabe complexity
+  "N",        # pep8-naming
+  "SIM",      # simplify
+  "RUF",      # ruff-specific
+  "PL",       # pylint
+  "T20",      # no print() — keeps PHI out of stdout
+  "LOG", "G", # logging hygiene
+  "PT",       # pytest style
+  "ERA",      # commented-out code
+]
+ignore = []
+
+[lint.mccabe]
+max-complexity = 15
+
+[lint.per-file-ignores]
+"**/tests/**" = ["S101", "PLR2004", "T20"]
+"**/test_*.py" = ["S101", "PLR2004", "T20"]
+"**/*_test.py" = ["S101", "PLR2004", "T20"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+docstring-code-format = true

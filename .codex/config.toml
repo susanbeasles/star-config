@@ -1,0 +1,7 @@
+# Project-scoped Codex config. Codex loads it only for trusted projects.
+# Codex reads AGENTS.md natively — keep instructions there, not here.
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+network_access = false

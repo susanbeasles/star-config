@@ -1,0 +1,16 @@
+# Managed by star-config v0.2.0: pinned native tools for this repo.
+# Install: `mise install` (setup does this). Update: bump star-config, then `star-config sync`.
+# mise.lock records per-platform URLs + checksums; commit it.
+[settings]
+lockfile = true
+
+[tools]
+gitleaks = "8.30.1"
+trivy = "0.76.0"
+uv = "0.13.1"
+semgrep = "1.180.0"
+yamllint = "1.38.0"
+actionlint = "1.7.12"
+shellcheck = "0.11.0"
+shfmt = "3.14.1"
+bats = "1.13.0"

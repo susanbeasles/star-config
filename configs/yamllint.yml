@@ -1,0 +1,28 @@
+# star-config — yamllint, tuned to agree with Prettier (Prettier owns layout,
+# yamllint owns correctness: duplicate keys, truthy values, bad indentation, anchors).
+extends: default
+rules:
+  line-length: disable # Prettier wraps what it can; long URLs/strings are fine
+  document-start: disable
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+  truthy:
+    allowed-values: ["true", "false", "on"] # "on" is a GitHub Actions key
+    check-keys: false
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: disable # Prettier re-indents comments
+  indentation:
+    spaces: 2
+    indent-sequences: consistent
+ignore: |
+  node_modules/
+  .venv/
+  vendor/
+  Pods/
+  target/
+  pnpm-lock.yaml

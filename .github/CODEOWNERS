@@ -1,0 +1,6 @@
+# Managed by star-config. Every PR needs a review from an owner below.
+# Docs: https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+# * @your-org/your-team   ← set with `star-config setup --owners @org/team`
+
+# Security-sensitive paths: keep these owned by a team with security review rights.
+# /.github/ @your-org/security

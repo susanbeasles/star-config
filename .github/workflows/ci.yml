@@ -1,0 +1,32 @@
+# Pin every action to a full commit SHA before enabling (see CVE-2026-33634: mutable action tags
+# were force-pushed to credential stealers). Dependabot keeps the SHAs current.
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v5 # TODO pin to SHA
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v5 # TODO pin to SHA
+        with:
+          node-version: 24
+          cache: npm
+      - uses: jdx/mise-action@v3 # TODO pin to SHA
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:coverage
+      - run: node bin/star-config.js lint
+      - run: node bin/star-config.js audit

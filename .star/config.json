@@ -1,0 +1,3 @@
+{
+  "skip": [".github/workflows/star-config.yml"]
+}

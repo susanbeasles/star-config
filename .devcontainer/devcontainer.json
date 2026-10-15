@@ -1,0 +1,29 @@
+{
+  "name": "star-config",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "24"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "SonarSource.sonarlint-vscode",
+        "EditorConfig.EditorConfig",
+        "redhat.vscode-yaml",
+        "github.vscode-github-actions",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "vitest.explorer",
+        "timonwong.shellcheck",
+        "mkhl.shfmt",
+        "jetmartin.bats"
+      ]
+    }
+  },
+  "forwardPorts": []
+}

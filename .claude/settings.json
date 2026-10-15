@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(.star/run lint:*)",
+      "Bash(.star/run format:*)",
+      "Bash(.star/run test:*)",
+      "Bash(.star/run check:*)",
+      "Bash(.star/run build:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)",
+      "Read(./**/*.p12)",
+      "Read(./secrets/**)",
+      "Bash(git push --force:*)",
+      "Bash(git commit --no-verify:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.star/run agent-hook"
+          }
+        ]
+      }
+    ]
+  }
+}

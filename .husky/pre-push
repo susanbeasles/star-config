@@ -1,0 +1,3 @@
+#!/bin/sh
+# Managed by star-config (pre-push). Bypassing with --no-verify is visible in review and CI still enforces.
+exec "$(git rev-parse --show-toplevel)/.star/run" pre-push

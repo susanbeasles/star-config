@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "SonarSource.sonarlint-vscode",
+    "EditorConfig.EditorConfig",
+    "redhat.vscode-yaml",
+    "github.vscode-github-actions",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "vitest.explorer",
+    "timonwong.shellcheck",
+    "mkhl.shfmt",
+    "jetmartin.bats"
+  ]
+}

@@ -1,0 +1,30 @@
+# star-config — SwiftLint
+# Extend from a repo:  .swiftlint.yml ->  parent_config: node_modules/star-config/configs/swiftlint.yml
+excluded:
+  - Pods
+  - .build
+  - DerivedData
+  - node_modules
+opt_in_rules:
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - empty_count
+  - fatal_error_message
+  - first_where
+  - sorted_first_last
+  - closure_spacing
+  - redundant_nil_coalescing
+  - unused_declaration
+  - unused_import
+cyclomatic_complexity:
+  warning: 10
+  error: 15
+function_body_length:
+  warning: 60
+  error: 100
+line_length:
+  warning: 120
+  error: 160
+  ignores_urls: true
+force_cast: error
+force_try: error

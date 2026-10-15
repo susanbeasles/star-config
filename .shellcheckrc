@@ -1,0 +1,7 @@
+# star-config — ShellCheck
+external-sources=true
+enable=all
+# Optional checks that are noisy without improving safety:
+disable=SC2250 # require braces around every variable
+disable=SC2310 # function in `||` condition disables set -e (intentional `cmd || die` idiom)
+disable=SC2312 # command substitution masks return value

@@ -1,0 +1,83 @@
+# Tag vX.Y.Z → build SEA binaries per platform → SHA256SUMS + build-provenance attestations
+# → GitHub Release → npm publish with provenance. install.sh verifies all of it.
+name: release
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  binaries:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { os: ubuntu-24.04, asset: star-config-linux-x64 }
+          - { os: ubuntu-24.04-arm, asset: star-config-linux-arm64 }
+          - { os: macos-15, asset: star-config-darwin-arm64 }
+          - { os: macos-15-intel, asset: star-config-darwin-x64 }
+          - { os: windows-2025, asset: star-config-windows-x64.exe }
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v5 # TODO pin to SHA
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5 # TODO pin to SHA
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: node scripts/build-sea.mjs
+      - name: Smoke test
+        shell: bash
+        run: ./dist/${{ matrix.asset }} --version
+      - name: Compress
+        shell: bash
+        run: gzip -9 -c "dist/${{ matrix.asset }}" > "dist/${{ matrix.asset }}.gz"
+      - uses: actions/attest-build-provenance@v3 # TODO pin to SHA
+        with:
+          subject-path: |
+            dist/${{ matrix.asset }}
+            dist/${{ matrix.asset }}.gz
+      - uses: actions/upload-artifact@v4 # TODO pin to SHA
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}.gz
+          if-no-files-found: error
+
+  publish:
+    needs: binaries
+    runs-on: ubuntu-24.04
+    environment: release # require a reviewer approval in repo settings
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5 # TODO pin to SHA
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v5 # TODO pin to SHA
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Checksums
+        working-directory: assets
+        run: sha256sum ./*.gz | sed 's#\./##' > SHA256SUMS && cat SHA256SUMS
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" assets/* install.sh --verify-tag --generate-notes
+      - uses: actions/setup-node@v5 # TODO pin to SHA
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -1,0 +1,16 @@
+# star-config
+node_modules/
+dist/
+build/
+coverage/
+cdk.out/
+.venv/
+target/
+.next/
+playwright-report/
+test-results/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+bun.lock
+CHANGELOG.md

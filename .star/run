@@ -1,0 +1,3 @@
+#!/bin/sh
+# Dogfood: this repo runs its own CLI from source.
+exec node "$(git rev-parse --show-toplevel)/bin/star-config.js" "$@"

@@ -1,0 +1,12 @@
+# star-config — hadolint
+failure-threshold: warning
+trustedRegistries:
+  - docker.io
+  - public.ecr.aws
+  - ghcr.io
+  - mcr.microsoft.com
+  - "*.dkr.ecr.*.amazonaws.com"
+override:
+  error:
+    - DL3002 # last USER should not be root
+    - DL3020 # use COPY instead of ADD
