@@ -84,7 +84,7 @@ export function dependencyVersionsOnly(before, after) {
 
 function eligiblePr(pr, repository, base) {
   const head = pr.head?.sha;
-  if (
+  return !(
     pr.state !== 'open' ||
     pr.draft ||
     !SHA.test(head ?? '') ||
@@ -98,11 +98,7 @@ function eligiblePr(pr, repository, base) {
     pr.changed_files > 100 ||
     pr.commits < 1 ||
     pr.commits > 100
-  ) {
-    return false;
-  }
-
-  return true;
+  );
 }
 
 async function trustedChanges(api, root, pr) {
