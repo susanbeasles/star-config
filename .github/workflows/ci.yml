@@ -16,7 +16,7 @@ jobs:
     env:
       CI: "true"
     steps:
-      - uses: actions/checkout@v5 # TODO pin to SHA
+      - uses: actions/checkout@v7 # TODO pin to SHA
         with:
           fetch-depth: 0
           persist-credentials: false
