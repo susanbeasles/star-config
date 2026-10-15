@@ -93,7 +93,6 @@ function eligiblePr(pr, repository, base) {
     pr.head?.repo?.full_name !== repository ||
     pr.base?.ref !== base ||
     pr.base?.repo?.full_name !== repository ||
-    !pr.mergeable ||
     pr.changed_files < 1 ||
     pr.changed_files > 100 ||
     pr.commits < 1 ||
@@ -202,6 +201,55 @@ async function noChangeRequests(api, root, pr) {
   return true;
 }
 
+async function requestRebase(api, root, pr, base, report) {
+  const marker = `<!-- dependabot-base-sync:${pr.head.sha}:${base} -->`;
+  const route = `${root}/issues/${pr.number}/comments`;
+  const comments = await api(`${route}?per_page=100`);
+  if (comments.length === 100 || comments.some((comment) => comment.body?.includes(marker))) {
+    return;
+  }
+  await api(route, { method: 'POST', body: { body: `@dependabot rebase\n\n${marker}` } });
+  report(`Requested Dependabot rebase for PR #${pr.number}`);
+}
+
+async function readyToPublish(api, repository, base, workflow, number, report) {
+  const root = `/repos/${repository}`;
+  const pr = await api(`${root}/pulls/${number}`);
+  if (
+    !eligiblePr(pr, repository, base) ||
+    !(await trustedChanges(api, root, pr)) ||
+    !(await noChangeRequests(api, root, pr))
+  ) {
+    return null;
+  }
+  const branch = await api(`${root}/branches/${encodeURIComponent(base)}`);
+  // This mode is for an unprotected base. Never use indirect merges to bypass PR rules.
+  if (branch.protected !== false) {
+    report(`PR #${number} requires manual integration: default branch is protected.`);
+    return null;
+  }
+  const head = pr.head.sha;
+  const comparison = await api(`${root}/compare/${branch.commit.sha}...${head}`);
+  if (comparison.behind_by > 0) {
+    await requestRebase(api, root, pr, branch.commit.sha, report);
+    return null;
+  }
+  if (
+    comparison.behind_by !== 0 ||
+    comparison.status !== 'ahead' ||
+    !pr.mergeable ||
+    !(await passingCI(api, root, workflow, head)) ||
+    !(await passingChecks(api, root, head))
+  ) {
+    return null;
+  }
+  const current = await api(`${root}/pulls/${number}`);
+  if (!eligiblePr(current, repository, base) || current.head.sha !== head || !current.mergeable) {
+    return null;
+  }
+  return pr;
+}
+
 export async function reconcile({ api, repository, report = () => {} }) {
   const root = `/repos/${repository}`;
   const repo = await api(root);
@@ -212,31 +260,18 @@ export async function reconcile({ api, repository, report = () => {} }) {
     if (candidate.user?.id !== BOT_ID || candidate.user?.login !== 'dependabot[bot]') {
       continue;
     }
-    const pr = await api(`${root}/pulls/${candidate.number}`);
-    if (!eligiblePr(pr, repository, base)) {
+    const pr = await readyToPublish(api, repository, base, workflow, candidate.number, report);
+    if (!pr) {
       continue;
     }
     const head = pr.head.sha;
-    if (
-      !(await trustedChanges(api, root, pr)) ||
-      !(await passingCI(api, root, workflow, head)) ||
-      !(await passingChecks(api, root, head)) ||
-      !(await noChangeRequests(api, root, pr))
-    ) {
-      continue;
-    }
-    // Require the current base immediately before merging; never merge a stale green head.
-    const branch = await api(`${root}/branches/${encodeURIComponent(base)}`);
-    const comparison = await api(`${root}/compare/${branch.commit.sha}...${head}`);
-    if (comparison.behind_by !== 0 || comparison.status !== 'ahead') {
-      continue;
-    }
-    // GitHub enforces repository rules and rejects a concurrent head update.
-    const result = await api(`${root}/pulls/${pr.number}/merge`, {
-      method: 'PUT',
-      body: { sha: head, merge_method: 'squash' },
+    // Publish only the tested commit. A concurrent base advance rejects the fast-forward
+    // instead of creating an untested merge commit. GitHub marks the PR merged by ancestry.
+    const result = await api(`${root}/git/refs/heads/${encodeURIComponent(base)}`, {
+      method: 'PATCH',
+      body: { sha: head, force: false },
     });
-    if (result.merged !== true) {
+    if (result.object?.sha !== head) {
       throw new Error(`GitHub declined PR #${pr.number}`);
     }
     report(`Merged Dependabot PR #${pr.number} at ${head}`);
