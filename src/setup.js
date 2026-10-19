@@ -4,7 +4,7 @@
  * Every install step is idempotent and skipped (with a hint) when its tool is missing.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { readManaged, writeManaged } from './managed-files.js';
 import { GUARD, HOOKS, validateHostPath } from './hook-boundary.js';
@@ -45,7 +45,7 @@ export function npmPackagesToAdd(ctx) {
   if (!node) {
     return [];
   }
-  const pkg = JSON.parse(readFileSync(path.join(ctx.root, 'package.json'), 'utf8'));
+  const pkg = JSON.parse(readManaged(ctx.root, 'package.json') ?? '{}');
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
   /** @type {string[]} */
   const want = [NPM_NAME];
@@ -201,6 +201,21 @@ function assertNoHuskyPrepare(ctx) {
   }
 }
 
+function validateHostInstallation() {
+  try {
+    validateHostPath(GUARD);
+    validateHostPath(HOOKS, true);
+    for (const hook of ['pre-commit', 'pre-push']) {
+      validateHostPath(path.join(HOOKS, hook));
+    }
+  } catch (error) {
+    throw new Error(
+      `Host agent-guard installation is unavailable or unsafe. Ask the host administrator to install the reviewed runner and Git hooks; no checkout fallback is permitted. ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
+  }
+}
+
 /** @param {Context} ctx */
 export function installHooks(ctx) {
   const config = spawnSync('git', ['config', '--get', 'core.hooksPath'], {
@@ -231,18 +246,7 @@ export function installHooks(ctx) {
       );
     }
   }
-  try {
-    validateHostPath(GUARD);
-    validateHostPath(HOOKS, true);
-    for (const hook of ['pre-commit', 'pre-push']) {
-      validateHostPath(path.join(HOOKS, hook));
-    }
-  } catch (error) {
-    throw new Error(
-      `Host agent-guard installation is unavailable or unsafe. Ask the host administrator to install the reviewed runner and Git hooks; no checkout fallback is permitted. ${error instanceof Error ? error.message : String(error)}`,
-      { cause: error },
-    );
-  }
+  validateHostInstallation();
   assertNoHuskyPrepare(ctx);
   return step('git', ['config', '--local', 'core.hooksPath', HOOKS], ctx.root, 'host Git hooks');
 }
@@ -255,13 +259,19 @@ export async function setup(initial, { force = false, scaffold = true, install =
   let ctx = initial;
   // Refuse before dependency installs can run an existing Husky lifecycle script.
   assertNoHuskyPrepare(ctx);
+  validateHostInstallation();
   log(bold(`star-config ${version()}${IS_SEA ? ' (binary)' : ''} — ${ctx.repoName}`));
   log(`Detected: ${describeStacks(ctx.stacks).join(' · ') || 'nothing yet'}`);
   if (scaffold) {
     log(bold('\nFiles'));
-    report(await converge(ctx.root, () => loadContext(ctx.root), { force, version: version() }));
+    report(
+      await converge(ctx.root, () => loadContext(ctx.root, {}, true), {
+        force,
+        version: version(),
+      }),
+    );
   }
-  ctx = loadContext(ctx.root);
+  ctx = loadContext(ctx.root, {}, true);
   if (install) {
     log(bold('\nInstall'));
     if (ctx.stacks.node) {

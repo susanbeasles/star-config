@@ -95,6 +95,14 @@ describe('immutable hook installation', () => {
     expect(spawnSync).not.toHaveBeenCalled();
     expect(exec).not.toHaveBeenCalled();
   });
+  it('rejects an absent host before any setup subprocess or dependency install', async () => {
+    lstatSync.mockImplementation(() => {
+      throw new Error('ENOENT');
+    });
+    await expect(setup(ctx, { install: true })).rejects.toThrow(/no checkout fallback/);
+    expect(spawnSync).not.toHaveBeenCalled();
+    expect(exec).not.toHaveBeenCalled();
+  });
   it('preserves and rejects a custom Husky prepare script', () => {
     existsSync.mockImplementation((p) => p.endsWith('package.json'));
     readManaged.mockReturnValue(JSON.stringify({ scripts: { prepare: 'build && husky' } }));

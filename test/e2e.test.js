@@ -1,5 +1,6 @@
 // End-to-end against real tools in a real git repo. Steps whose tool isn't installed are
 // skipped by star-config itself (locally) — these tests assert on the ones that are present.
+import assert from 'node:assert/strict';
 import { existsSync, readFileSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -65,6 +66,13 @@ beforeAll(() => {
     !out(setup).includes('Host agent-guard installation is unavailable or unsafe')
   ) {
     throw new Error(out(setup));
+  }
+  if (setup.status !== 0) {
+    assert.equal(existsSync(path.join(repo.root, 'AGENTS.md')), false);
+    assert.equal(repo.sh('git', ['config', 'core.hooksPath']).stdout.trim(), '');
+    // Scaffolding is an explicit independent operation; setup fails before doing it.
+    const sync = repo.cli(['sync']);
+    assert.equal(sync.status, 0, out(sync));
   }
   repo.sh('git', ['add', '-A']);
 }, 120_000);

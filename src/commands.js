@@ -1,8 +1,9 @@
 // @ts-check
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { assetPath, IS_SEA, version } from './assets.js';
 import { loadContext } from './context.js';
+import { writeManaged } from './managed-files.js';
 import { describeStacks } from './detect.js';
 import { createLintStagedConfig, getLanguage, getLanguages, matches } from './languages.js';
 import {
@@ -400,14 +401,10 @@ export async function setup(cwd, opts) {
     securityContact: opts.securityContact,
     jsProfile: opts.jsProfile,
   };
-  const ctx = loadContext(cwd, overrides);
+  const ctx = loadContext(cwd, overrides, true);
   if (opts.owners || opts.securityContact || opts.jsProfile) {
-    mkdirSync(path.join(ctx.root, '.star'), { recursive: true });
     const file = '.star/config.json';
-    writeFileSync(
-      path.join(ctx.root, file),
-      await formatGenerated(file, JSON.stringify(ctx.config)),
-    );
+    writeManaged(ctx.root, file, await formatGenerated(file, JSON.stringify(ctx.config)));
   }
   return runSetup(ctx, opts);
 }

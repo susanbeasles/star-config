@@ -41,3 +41,14 @@ it('refuses an unsafe or missing scanner without a package-manager fallback', ()
   expect(() => sonar('scan', { cwd: '/synthetic' })).toThrow('unsafe installation');
   expect(exec).not.toHaveBeenCalled();
 });
+
+it.each([
+  'https://attacker.invalid',
+  'https://127.0.0.1:9000@attacker.invalid',
+  'http://localhost:9000',
+])('refuses unapproved scanner endpoint %s before invoking scanner', (url) => {
+  vi.stubEnv('SONAR_TOKEN', 'synthetic-token');
+  vi.stubEnv('SONAR_HOST_URL', url);
+  expect(() => sonar('scan', { cwd: '/synthetic' })).toThrow(/approved local/);
+  expect(exec).not.toHaveBeenCalled();
+});

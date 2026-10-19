@@ -1,17 +1,23 @@
-// Run directly with node --test test/security-hook-boundaries.mjs.
+// Included in the standard Vitest and CI test suites.
 // Payloads only create a marker in an isolated temporary fixture.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { test } from 'node:test';
+import { test, afterEach } from 'vitest';
+const roots = [];
+afterEach(() => {
+  for (const root of roots.splice(0)) {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 import { claudeSettings } from '../src/templates/agents.js';
 import { gitHook } from '../src/templates/devenv.js';
 
-function fixture(t) {
+function fixture() {
   const root = mkdtempSync(path.join(tmpdir(), 'star-hook-boundary-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  roots.push(root);
   const home = path.join(root, 'home');
   const checkout = path.join(root, 'checkout');
   mkdirSync(home);
@@ -28,8 +34,8 @@ function fixture(t) {
 }
 
 for (const hook of ['pre-commit', 'pre-push']) {
-  test(`generated ${hook} cannot execute a replaced checkout launcher on the host`, (t) => {
-    const { marker, run } = fixture(t);
+  test(`generated ${hook} cannot execute a replaced checkout launcher on the host`, () => {
+    const { marker, run } = fixture();
     const result = run('/bin/sh', ['-c', gitHook(hook)]);
     assert.notEqual(result.status, 0, 'missing host runner must fail closed');
     assert.equal(existsSync(marker), false, 'mutable checkout launcher executed automatically');
@@ -41,8 +47,8 @@ const settings = [
   ['installed', JSON.parse(readFileSync(new URL('../.claude/settings.json', import.meta.url)))],
 ];
 for (const [label, config] of settings) {
-  test(`${label} post-edit hook cannot execute a replaced checkout launcher on the host`, (t) => {
-    const { marker, run } = fixture(t);
+  test(`${label} post-edit hook cannot execute a replaced checkout launcher on the host`, () => {
+    const { marker, run } = fixture();
     for (const entry of config.hooks?.PostToolUse ?? []) {
       for (const hook of entry.hooks ?? []) {
         if (hook.type === 'command') {

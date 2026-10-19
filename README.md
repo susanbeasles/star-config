@@ -37,8 +37,8 @@ star-config setup --owners @your-org/platform
   right formatter for each language), `mise.toml` (pinned native tools) and `.editorconfig`.
 - **CI:** `.github/workflows/star-config.yml`, which runs `star-config check`.
 - **Hooks:** `pre-commit` runs Gitleaks on the staged diff, then lint-staged to format and lint
-  staged files. `pre-push` runs lint and unit tests. Hooks work through Husky in Node repos and
-  plain `core.hooksPath` everywhere else.
+  staged files. `pre-push` runs lint and unit tests. Hooks dispatch through the reviewed host-managed runner
+  registered at the fixed `core.hooksPath`; setup refuses missing or unsafe host installations.
 
 ## Commands
 

@@ -82,12 +82,15 @@ export function sonar(sub, { cwd, purge = false }) {
         );
         return 1;
       }
+      if (process.env.SONAR_HOST_URL && process.env.SONAR_HOST_URL !== URL) {
+        throw new Error('Sonar scans require the approved local endpoint http://127.0.0.1:9000');
+      }
       // Resolve no package or repository-selected executable while a token is present.
       validateHostPath(SCANNER);
       return exec(
         SCANNER,
         [
-          `-Dsonar.host.url=${process.env.SONAR_HOST_URL ?? URL}`,
+          `-Dsonar.host.url=${URL}`,
           `-Dsonar.projectKey=${projectKey(cwd)}`,
           '-Dsonar.exclusions=**/node_modules/**,**/.venv/**,**/target/**,**/dist/**,**/coverage/**',
         ],
