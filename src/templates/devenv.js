@@ -1,4 +1,5 @@
 // @ts-check
+import { guardCommand } from '../hook-boundary.js';
 import { INSTALL_URL } from '../constants.js';
 import { MISE_TOOLS } from '../tools.js';
 
@@ -79,7 +80,7 @@ exit 127
 export function gitHook(hook) {
   return `#!/bin/sh
 # Managed by star-config (${hook}). Bypassing with --no-verify is visible in review and CI still enforces.
-exec "$(git rev-parse --show-toplevel)/.star/run" ${hook}
+${guardCommand(hook)}
 `;
 }
 

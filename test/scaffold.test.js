@@ -89,7 +89,9 @@ describe('plan', () => {
     expect(files['AGENTS.md'].content).toMatch(/No PHI or PII/);
     const claude = JSON.parse(files['.claude/settings.json'].content);
     expect(claude.permissions.deny).toContain('Read(./.env)');
-    expect(claude.hooks.PostToolUse[0].hooks[0].command).toMatch(/agent-hook/);
+    expect(claude.hooks.PostToolUse[0].hooks[0].command).toContain(
+      'exec /opt/agent-guard/bin/agent-guard check post-edit',
+    );
     expect(parseToml(files['.codex/config.toml'].content)).toMatchObject({
       sandbox_mode: 'workspace-write',
     });

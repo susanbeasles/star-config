@@ -4,8 +4,10 @@
  * Every install step is idempotent and skipped (with a hint) when its tool is missing.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
+import { readManaged, writeManaged } from './managed-files.js';
+import { GUARD, HOOKS, validateHostPath } from './hook-boundary.js';
 import { IS_SEA, version } from './assets.js';
 import { NPM_NAME } from './constants.js';
 import { describeStacks } from './detect.js';
@@ -75,8 +77,7 @@ export function npmPackagesToAdd(ctx) {
 
 /** @param {Context} ctx */
 function warnTypeScript7(ctx) {
-  const pkgPath = path.join(ctx.root, 'package.json');
-  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+  const pkg = JSON.parse(readManaged(ctx.root, 'package.json') ?? '{}');
   const ts = pkg.devDependencies?.typescript ?? pkg.dependencies?.typescript;
   if (ts && /^\D*7/.test(ts)) {
     log(
@@ -103,11 +104,9 @@ function installNode(ctx) {
     const [cmd, args] = cmds[node.pm];
     step(cmd, args, ctx.root, `${node.pm} install`);
   }
-  const pkgPath = path.join(ctx.root, 'package.json');
-  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+  const pkg = JSON.parse(readManaged(ctx.root, 'package.json') ?? '{}');
   pkg.scripts ??= {};
   const scripts = {
-    prepare: 'husky',
     lint: 'star-config lint',
     'lint:fix': 'star-config lint --fix',
     format: 'star-config format',
@@ -126,7 +125,7 @@ function installNode(ctx) {
     changed = true;
   }
   if (changed) {
-    writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
+    writeManaged(ctx.root, 'package.json', `${JSON.stringify(pkg, null, 2)}\n`);
     log(`  ${green('update')} package.json scripts`);
   }
 }
@@ -189,13 +188,63 @@ function installMise(ctx) {
 }
 
 /** @param {Context} ctx */
-export function installHooks(ctx) {
-  // Node repos: husky (prepare script) manages core.hooksPath=.husky/_ and calls .husky/<hook>.
-  // Other repos: point git straight at .husky; our hooks are executable with a shebang.
-  if (ctx.stacks.node && existsSync(path.join(ctx.root, 'node_modules', '.bin', 'husky'))) {
-    return step(path.join(ctx.root, 'node_modules', '.bin', 'husky'), [], ctx.root, 'husky');
+function assertNoHuskyPrepare(ctx) {
+  const contents = readManaged(ctx.root, 'package.json');
+  if (contents !== null) {
+    const pkg = JSON.parse(contents);
+    const prepare = pkg.scripts?.prepare;
+    if (prepare && /\bhusky\b/.test(prepare)) {
+      throw new Error(
+        'package.json prepare invokes Husky and was preserved. Explicitly migrate/remove that hook installer before rerunning star-config hooks.',
+      );
+    }
   }
-  return step('git', ['config', 'core.hooksPath', '.husky'], ctx.root, 'git hooks');
+}
+
+/** @param {Context} ctx */
+export function installHooks(ctx) {
+  const config = spawnSync('git', ['config', '--get', 'core.hooksPath'], {
+    cwd: ctx.root,
+    encoding: 'utf8',
+  });
+  if (config.status !== 0 && config.status !== 1) {
+    throw new Error('Cannot inspect Git hook configuration; no hooks were installed.');
+  }
+  const existing = config.stdout.trim();
+  if (existing && existing !== HOOKS) {
+    throw new Error(
+      `Existing core.hooksPath=${existing} was preserved. Review and migrate its checks into host agent-guard policy, then explicitly remove the old setting and rerun star-config hooks.`,
+    );
+  }
+  if (!existing) {
+    const result = spawnSync('git', ['rev-parse', '--git-path', 'hooks'], {
+      cwd: ctx.root,
+      encoding: 'utf8',
+    });
+    if (result.status !== 0) {
+      throw new Error('Cannot locate existing Git hooks.');
+    }
+    const dir = path.resolve(ctx.root, result.stdout.trim());
+    if (existsSync(dir) && readdirSync(dir).some((name) => !name.endsWith('.sample'))) {
+      throw new Error(
+        'Existing Git hooks were preserved. Migrate their checks into host agent-guard policy before installing managed hooks.',
+      );
+    }
+  }
+  try {
+    validateHostPath(GUARD);
+    validateHostPath(HOOKS, true);
+    for (const hook of ['pre-commit', 'pre-push']) {
+      validateHostPath(path.join(HOOKS, hook));
+    }
+  } catch (error) {
+    throw new Error(
+      `Host agent-guard installation is unavailable or unsafe. Ask the host administrator to install the reviewed runner and Git hooks; no checkout fallback is permitted. ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
+  }
+  assertNoHuskyPrepare(ctx);
+  return step('git', ['config', '--local', 'core.hooksPath', HOOKS], ctx.root, 'host Git hooks');
 }
 
 /**
@@ -204,6 +253,8 @@ export function installHooks(ctx) {
  */
 export async function setup(initial, { force = false, scaffold = true, install = true }) {
   let ctx = initial;
+  // Refuse before dependency installs can run an existing Husky lifecycle script.
+  assertNoHuskyPrepare(ctx);
   log(bold(`star-config ${version()}${IS_SEA ? ' (binary)' : ''} — ${ctx.repoName}`));
   log(`Detected: ${describeStacks(ctx.stacks).join(' · ') || 'nothing yet'}`);
   if (scaffold) {
@@ -225,7 +276,10 @@ export async function setup(initial, { force = false, scaffold = true, install =
     installMise(ctx);
   }
   log(bold('\nHooks'));
-  installHooks(ctx);
+  const hooksCode = installHooks(ctx);
+  if (hooksCode !== 0) {
+    return hooksCode;
+  }
   if (ctx.stacks.node?.cdk) {
     log(`\n${bold('AWS CDK:')} wire cdk-nag into your app entry (bin/*.ts):
   ${dim("import { Aspects } from 'aws-cdk-lib';")}

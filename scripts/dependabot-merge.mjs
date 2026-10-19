@@ -34,13 +34,7 @@ export function eligibleFiles(files) {
       if (['package.json', 'package-lock.json'].includes(file.filename)) {
         return true;
       }
-      if (
-        [
-          '.github/workflows/ci.yml',
-          '.github/workflows/release.yml',
-          '.github/workflows/dependabot-merge.yml',
-        ].includes(file.filename)
-      ) {
+      if (['.github/workflows/ci.yml'].includes(file.filename)) {
         return revisionsOnly(
           file.patch,
           /^(\s*- uses: [\w-]+\/[\w./-]+)@[a-f0-9]{40}(?: # v[\w.+-]+)?$/,

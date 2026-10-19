@@ -28,7 +28,6 @@
     "LICENSE"
   ],
   "scripts": {
-    "prepare": "husky",
     "lint": "node bin/star-config.js lint",
     "lint:fix": "node bin/star-config.js lint --fix",
     "format": "node bin/star-config.js format",

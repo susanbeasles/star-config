@@ -10,8 +10,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { assetPath } from './assets.js';
-import { NPM_DEV } from './tools.js';
+import { validateHostPath } from './hook-boundary.js';
 import { bold, dim, exec, green, log, red } from './runner.js';
+
+export const SCANNER = '/opt/star-config/sonar/bin/sonar-scanner';
 
 const URL = 'http://127.0.0.1:9000';
 
@@ -80,16 +82,26 @@ export function sonar(sub, { cwd, purge = false }) {
         );
         return 1;
       }
+      // Resolve no package or repository-selected executable while a token is present.
+      validateHostPath(SCANNER);
       return exec(
-        'npx',
+        SCANNER,
         [
-          '--yes',
-          `@sonar/scan@${NPM_DEV['@sonar/scan']}`,
           `-Dsonar.host.url=${process.env.SONAR_HOST_URL ?? URL}`,
           `-Dsonar.projectKey=${projectKey(cwd)}`,
           '-Dsonar.exclusions=**/node_modules/**,**/.venv/**,**/target/**,**/dist/**,**/coverage/**',
         ],
-        { cwd },
+        {
+          cwd,
+          env: {
+            SONAR_TOKEN: process.env.SONAR_TOKEN,
+            HOME: homedir(),
+            PATH: '/usr/bin:/bin',
+            ...(process.platform === 'win32'
+              ? { SystemRoot: process.env.SystemRoot, USERPROFILE: homedir() }
+              : {}),
+          },
+        },
       );
     }
     case 'down':
