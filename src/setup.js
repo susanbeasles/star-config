@@ -152,7 +152,7 @@ function installPython(ctx) {
   if (py.hasPyproject) {
     step('uv', ['add', '--dev', ...dev], ctx.root, 'uv add --dev');
   } else {
-    if (existsSync(path.join(ctx.root, 'requirements.txt'))) {
+    if (readManaged(ctx.root, 'requirements.txt') !== null) {
       step(
         'uv',
         ['pip', 'install', '--python', '.venv', '-r', 'requirements.txt'],

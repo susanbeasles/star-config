@@ -90,3 +90,21 @@ it.each(['.star/config.json', 'package.json'])(
     expect(readFileSync(outside, 'utf8')).toBe('{}');
   },
 );
+
+it.each([
+  'requirements.txt',
+  'pyproject.toml',
+  'uv.lock',
+  'poetry.lock',
+  'uv.toml',
+  'poetry.toml',
+  'setup.py',
+  'setup.cfg',
+])('rejects linked Python input %s before setup', async (name) => {
+  const { root, outside } = fixture();
+  writeFileSync(path.join(root, 'main.py'), 'print(1)');
+  symlinkSync(outside, path.join(root, name));
+  expect(() => loadContext(root, {}, true)).toThrow(/Unsafe/);
+  await expect(setup(root, { install: true, scaffold: false })).rejects.toThrow(/Unsafe/);
+  expect(readFileSync(outside, 'utf8')).toBe('{}');
+});

@@ -263,7 +263,7 @@ function pythonCiSteps(python) {
   if (python.manager === 'poetry') {
     project = `POETRY_VIRTUALENVS_IN_PROJECT=true poetry sync --all-groups\n          uv pip install --python .venv/bin/python ${tools}`;
   } else if (python.hasPyproject) {
-    project = `uv sync --frozen --all-groups\n          uv pip install --python .venv/bin/python ${tools}`;
+    project = `if [ -f uv.lock ]; then uv sync --frozen --all-groups; else uv sync --all-groups; fi\n          uv pip install --python .venv/bin/python ${tools}`;
   } else {
     project = `uv venv .venv\n          if [ -f requirements.txt ]; then uv pip install --python .venv/bin/python -r requirements.txt; fi\n          uv pip install --python .venv/bin/python ${tools}`;
   }

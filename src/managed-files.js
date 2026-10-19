@@ -165,6 +165,14 @@ export function validatePackageInputs(root) {
     '.yarnrc.yml',
     'pnpm-workspace.yaml',
     'bunfig.toml',
+    'requirements.txt',
+    'pyproject.toml',
+    'uv.lock',
+    'poetry.lock',
+    'uv.toml',
+    'poetry.toml',
+    'setup.py',
+    'setup.cfg',
   ]) {
     readManaged(root, rel);
   }
