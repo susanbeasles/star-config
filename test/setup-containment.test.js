@@ -1,9 +1,9 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { setup } from '../src/commands.js';
+import { setup, sync } from '../src/commands.js';
 import { loadContext, readRepoConfig } from '../src/context.js';
 import { npmPackagesToAdd } from '../src/setup.js';
 const dirs = [];
@@ -57,3 +57,36 @@ it('keeps ordinary context reads portable while managed setup reads fail closed'
     Object.defineProperty(process, 'platform', { value: platform });
   }
 });
+
+it.each([
+  'package-lock.json',
+  'npm-shrinkwrap.json',
+  'pnpm-lock.yaml',
+  'yarn.lock',
+  'bun.lock',
+  'bun.lockb',
+])('rejects linked package manager input %s', (name) => {
+  const { root, outside } = fixture();
+  writeFileSync(path.join(root, 'package.json'), '{}');
+  symlinkSync(outside, path.join(root, name));
+  expect(() => loadContext(root, {}, true)).toThrow(/Unsafe/);
+  expect(() => npmPackagesToAdd({ root, stacks: { node: {} } })).toThrow(/Unsafe/);
+  expect(readFileSync(outside, 'utf8')).toBe('{}');
+});
+it.each(['.star/config.json', 'package.json'])(
+  'rejects linked sync input %s at the CLI entry and reload',
+  async (name) => {
+    const { root, outside } = fixture();
+    mkdirSync(path.join(root, '.star'));
+    symlinkSync(outside, path.join(root, name));
+    const result = spawnSync(
+      process.execPath,
+      [path.resolve('bin/star-config.js'), 'sync', '--check'],
+      { cwd: root, encoding: 'utf8' },
+    );
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/Unsafe/);
+    await expect(sync({ root }, { dryRun: true })).rejects.toThrow(/Unsafe/);
+    expect(readFileSync(outside, 'utf8')).toBe('{}');
+  },
+);

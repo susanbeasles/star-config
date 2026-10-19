@@ -6,7 +6,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { readManaged, writeManaged } from './managed-files.js';
+import { readManaged, writeManaged, validatePackageInputs } from './managed-files.js';
 import { GUARD, HOOKS, validateHostPath } from './hook-boundary.js';
 import { IS_SEA, version } from './assets.js';
 import { NPM_NAME } from './constants.js';
@@ -41,6 +41,7 @@ function step(cmd, args, cwd, what) {
  * @param {Context} ctx
  */
 export function npmPackagesToAdd(ctx) {
+  validatePackageInputs(ctx.root);
   const node = ctx.stacks.node;
   if (!node) {
     return [];

@@ -28,6 +28,8 @@ export const MISE_TOOLS = /** @type {const} */ ({
   yamllint: '1.38.0',
   // renovate: datasource=github-releases depName=astral-sh/uv
   uv: '0.13.1',
+  // renovate: datasource=pypi depName=poetry
+  poetry: '2.5.1',
   // renovate: datasource=pypi depName=ruff
   ruff: '0.17.0',
   // renovate: datasource=github-releases depName=EmbarkStudios/cargo-deny

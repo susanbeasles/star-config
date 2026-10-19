@@ -7,7 +7,11 @@ vi.mock('node:fs', () => ({
   writeFileSync: vi.fn(),
   lstatSync: vi.fn(),
 }));
-vi.mock('../src/managed-files.js', () => ({ readManaged: vi.fn(), writeManaged: vi.fn() }));
+vi.mock('../src/managed-files.js', () => ({
+  readManaged: vi.fn(),
+  writeManaged: vi.fn(),
+  validatePackageInputs: vi.fn(),
+}));
 vi.mock('../src/runner.js', () => ({
   exec: vi.fn(() => 0),
   log: vi.fn(),
@@ -19,7 +23,7 @@ vi.mock('../src/runner.js', () => ({
 import { spawnSync } from 'node:child_process';
 import { existsSync, lstatSync, readdirSync, writeFileSync } from 'node:fs';
 import { readManaged } from '../src/managed-files.js';
-import { GUARD, HOOKS, validateHostPath } from '../src/hook-boundary.js';
+import { GUARD, HOOKS, validateHostPath, validateHostTree } from '../src/hook-boundary.js';
 import { exec } from '../src/runner.js';
 import { installHooks, setup } from '../src/setup.js';
 
@@ -110,4 +114,26 @@ describe('immutable hook installation', () => {
     expect(writeFileSync).not.toHaveBeenCalled();
     expect(exec).not.toHaveBeenCalled();
   });
+});
+
+it.each([{ uid: 1000 }, { mode: 0o666 }, { isSymbolicLink: () => true }, { nlink: 2 }])(
+  'rejects writable or linked scanner cache entries %j',
+  (unsafe) => {
+    readdirSync.mockReturnValue(['cache.jar']);
+    lstatSync.mockImplementation((p) =>
+      p.endsWith('cache.jar')
+        ? { ...safeStat(false), mode: 0o644, nlink: 1, ...unsafe }
+        : safeStat(true),
+    );
+    expect(() => validateHostTree('/opt/star-config/sonar/cache')).toThrow(
+      /Unsafe host scanner state/,
+    );
+  },
+);
+it('accepts immutable regular scanner cache files without requiring executable mode', () => {
+  readdirSync.mockReturnValue(['cache.jar']);
+  lstatSync.mockImplementation((p) =>
+    p.endsWith('cache.jar') ? { ...safeStat(false), mode: 0o644, nlink: 1 } : safeStat(true),
+  );
+  expect(() => validateHostTree('/opt/star-config/sonar/cache')).not.toThrow();
 });

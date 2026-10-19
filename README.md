@@ -152,7 +152,11 @@ star-config sonar scan
 Scanning requires a reviewed, root-owned Sonar scanner installation at
 `/opt/star-config/sonar/bin/sonar-scanner`, with its dependencies protected by the
 operator. Repository npm configuration is never used to acquire a token-bearing
-scanner. Missing or unsafe installations fail without downloading a replacement.
+scanner. The operator must also provision protected home and pre-populated cache
+directories at `/opt/star-config/sonar/home` and `/opt/star-config/sonar/cache`,
+including all scanner/JRE/plugin dependencies. Their contents must remain outside
+worker write access; a cache miss must fail rather than use the worker home.
+Missing or unsafe installations fail without downloading a replacement.
 
 Point the IDE extension at `http://127.0.0.1:9000` (Connected Mode) to get the same rules while
 you type.
@@ -232,3 +236,8 @@ to opened directories, including when a parent pathname is replaced with a link.
 Run them in an exclusively controlled checkout or the isolated runtime: a separate
 host process that can move the opened directory itself outside the checkout is
 outside this containment guarantee. No automatic host configuration is performed.
+
+Generated hosted CI installs declared dependencies and Python test prerequisites
+directly, then runs the full strict checks. It does not run developer hook setup
+or require `/opt/agent-guard` on ephemeral GitHub-hosted runners. Local setup and
+automatic developer hooks still require the separately installed host boundary.

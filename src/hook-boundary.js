@@ -1,5 +1,5 @@
 // @ts-check
-import { lstatSync } from 'node:fs';
+import { lstatSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 export const GUARD = '/opt/agent-guard/bin/agent-guard';
@@ -34,6 +34,36 @@ export function validateHostPath(target, directory = false) {
       throw new Error(
         `Unsafe host installation: ${current} must be root-owned, executable, not writable by group/others, and not a symlink.`,
       );
+    }
+  }
+}
+
+/** Require every pre-provisioned scanner state entry to be operator-controlled.
+ * @param {string} root
+ */
+export function validateHostTree(root) {
+  validateHostPath(root, true);
+  const pending = [root];
+  let count = 0;
+  while (pending.length) {
+    const dir = /** @type {string} */ (pending.pop());
+    for (const name of readdirSync(dir)) {
+      if (++count > 100000) {
+        throw new Error('Host scanner state exceeds validation limit');
+      }
+      const target = path.join(dir, name);
+      const stat = lstatSync(target);
+      if (
+        stat.uid !== 0 ||
+        (stat.mode & 0o022) !== 0 ||
+        stat.isSymbolicLink() ||
+        (!stat.isDirectory() && (!stat.isFile() || stat.nlink !== 1))
+      ) {
+        throw new Error(`Unsafe host scanner state: ${target}`);
+      }
+      if (stat.isDirectory()) {
+        pending.push(target);
+      }
     }
   }
 }

@@ -10,10 +10,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { assetPath } from './assets.js';
-import { validateHostPath } from './hook-boundary.js';
+import { validateHostPath, validateHostTree } from './hook-boundary.js';
 import { bold, dim, exec, green, log, red } from './runner.js';
 
 export const SCANNER = '/opt/star-config/sonar/bin/sonar-scanner';
+export const SCANNER_HOME = '/opt/star-config/sonar/home';
+export const SCANNER_CACHE = '/opt/star-config/sonar/cache';
 
 const URL = 'http://127.0.0.1:9000';
 
@@ -87,10 +89,13 @@ export function sonar(sub, { cwd, purge = false }) {
       }
       // Resolve no package or repository-selected executable while a token is present.
       validateHostPath(SCANNER);
+      validateHostTree(SCANNER_HOME);
+      validateHostTree(SCANNER_CACHE);
       return exec(
         SCANNER,
         [
           `-Dsonar.host.url=${URL}`,
+          `-Dsonar.userHome=${SCANNER_CACHE}`,
           `-Dsonar.projectKey=${projectKey(cwd)}`,
           '-Dsonar.exclusions=**/node_modules/**,**/.venv/**,**/target/**,**/dist/**,**/coverage/**',
         ],
@@ -98,10 +103,13 @@ export function sonar(sub, { cwd, purge = false }) {
           cwd,
           env: {
             SONAR_TOKEN: process.env.SONAR_TOKEN,
-            HOME: homedir(),
+            HOME: SCANNER_HOME,
+            SONAR_USER_HOME: SCANNER_CACHE,
+            XDG_CACHE_HOME: SCANNER_CACHE,
+            JAVA_TOOL_OPTIONS: `-Duser.home=${SCANNER_HOME}`,
             PATH: '/usr/bin:/bin',
             ...(process.platform === 'win32'
-              ? { SystemRoot: process.env.SystemRoot, USERPROFILE: homedir() }
+              ? { SystemRoot: process.env.SystemRoot, USERPROFILE: SCANNER_HOME }
               : {}),
           },
         },

@@ -378,7 +378,7 @@ export function doctor(ctx) {
  * @param {{ force?: boolean, dryRun?: boolean }} opts
  */
 export async function sync(ctx, { force = false, dryRun = false }) {
-  const r = await converge(ctx.root, () => loadContext(ctx.root), {
+  const r = await converge(ctx.root, () => loadContext(ctx.root, {}, true), {
     force,
     version: version(),
     dryRun,

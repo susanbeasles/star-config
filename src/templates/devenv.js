@@ -1,7 +1,7 @@
 // @ts-check
 import { guardCommand } from '../hook-boundary.js';
 import { INSTALL_URL } from '../constants.js';
-import { MISE_TOOLS } from '../tools.js';
+import { MISE_TOOLS, PY_DEV } from '../tools.js';
 
 /** @typedef {import('./governance.js').Ctx} Ctx */
 
@@ -27,6 +27,9 @@ export function miseToolsFor(s) {
   }
   if (s.python) {
     tools.push('ruff');
+    if (s.python.manager === 'poetry') {
+      tools.push('poetry');
+    }
   }
   if (s.rust) {
     tools.push('cargo-deny');
@@ -249,9 +252,32 @@ const binaryInstall = (version) => `      - name: Install star-config (checksum-
         run: curl -fsSL ${INSTALL_URL} | sh -s -- --version ${version}
 `;
 
+/** CI installs declared dependencies without registering developer hooks.
+ * @param {NonNullable<Ctx['stacks']['python']>} python
+ */
+function pythonCiSteps(python) {
+  const tools = Object.entries(PY_DEV)
+    .map(([name, version]) => `${name}==${version}`)
+    .join(' ');
+  let project;
+  if (python.manager === 'poetry') {
+    project = `POETRY_VIRTUALENVS_IN_PROJECT=true poetry sync --all-groups\n          uv pip install --python .venv/bin/python ${tools}`;
+  } else if (python.hasPyproject) {
+    project = `uv sync --frozen --all-groups\n          uv pip install --python .venv/bin/python ${tools}`;
+  } else {
+    project = `uv venv .venv\n          if [ -f requirements.txt ]; then uv pip install --python .venv/bin/python -r requirements.txt; fi\n          uv pip install --python .venv/bin/python ${tools}`;
+  }
+  return `      - name: Install Python test prerequisites
+        run: |
+          ${project}
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+`;
+}
+
 /** @param {Ctx} ctx */
 export function githubWorkflow(ctx) {
   const s = ctx.stacks;
+  const pythonSteps = s.python ? pythonCiSteps(s.python) : '';
   const nodeSteps = s.node ? NODE_CI_STEPS[s.node.pm] : binaryInstall(ctx.version);
   const e2e = s.node?.web
     ? `
@@ -297,8 +323,7 @@ jobs:
           fetch-depth: 0 # gitleaks scans full history
           persist-credentials: false
       - uses: jdx/mise-action@v3 # TODO pin to SHA — installs mise.toml tools (checksums from mise.lock)
-${nodeSteps}      - run: .star/run setup --no-scaffold
-      - run: .star/run check --coverage
+${nodeSteps}${pythonSteps}      - run: .star/run check --coverage
 ${e2e}`;
 }
 

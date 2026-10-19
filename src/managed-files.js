@@ -145,3 +145,27 @@ export function writeManaged(root, rel, content, mode = 0o644) {
     closeSync(parent.fd);
   }
 }
+
+/** Validate package-manager inputs before detection and installation.
+ * As with managed writes, setup requires an exclusively controlled checkout;
+ * external package managers must not race another process changing this namespace.
+ * @param {string} root
+ */
+export function validatePackageInputs(root) {
+  for (const rel of [
+    'package.json',
+    'package-lock.json',
+    'npm-shrinkwrap.json',
+    'pnpm-lock.yaml',
+    'yarn.lock',
+    'bun.lock',
+    'bun.lockb',
+    '.npmrc',
+    '.yarnrc',
+    '.yarnrc.yml',
+    'pnpm-workspace.yaml',
+    'bunfig.toml',
+  ]) {
+    readManaged(root, rel);
+  }
+}

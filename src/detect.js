@@ -5,7 +5,7 @@
  * dependabot ecosystems, devcontainer features) is derived from this result.
  */
 import { existsSync, readFileSync } from 'node:fs';
-import { readManaged } from './managed-files.js';
+import { readManaged, validatePackageInputs } from './managed-files.js';
 import path from 'node:path';
 
 /**
@@ -66,6 +66,9 @@ function readJson(root, rel, managed) {
  * @returns {NodeStack | null}
  */
 function detectNode(root, files, managed) {
+  if (managed) {
+    validatePackageInputs(root);
+  }
   if (!files.includes('package.json') && !existsSync(path.join(root, 'package.json'))) {
     return null;
   }
