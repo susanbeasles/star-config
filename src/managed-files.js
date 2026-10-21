@@ -15,8 +15,8 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 
-/** Validate every existing component, including dangling links. @param {string} root @param {string} rel */
-export function managedPath(root, rel) {
+/** Validate every existing component, including dangling links. @param {string} root @param {string} rel @param {boolean} [directory] */
+export function managedPath(root, rel, directory = false) {
   if (
     path.isAbsolute(rel) ||
     rel.split(/[\\/]/).some((part) => !part || part === '.' || part === '..')
@@ -40,7 +40,7 @@ export function managedPath(root, rel) {
     const leaf = index === parts.length - 1;
     if (
       info.isSymbolicLink() ||
-      (leaf ? !info.isFile() || info.nlink !== 1 : !info.isDirectory())
+      (leaf && !directory ? !info.isFile() || info.nlink !== 1 : !info.isDirectory())
     ) {
       throw new Error(`Unsafe managed path: ${rel}`);
     }
@@ -50,10 +50,10 @@ export function managedPath(root, rel) {
 
 /** Open parent directories without following any link; mutations stay on this descriptor.
  * Node has no openat API. Fail closed where its Linux fd namespace is unavailable.
- * @param {string} root @param {string} rel @param {boolean} create
+ * @param {string} root @param {string} rel @param {boolean} create @param {boolean} [directory]
  */
-function openParent(root, rel, create) {
-  managedPath(root, rel);
+function openParent(root, rel, create, directory = false) {
+  managedPath(root, rel, directory);
   if (process.platform !== 'linux') {
     throw new Error('Managed writes require the Linux descriptor-relative filesystem boundary');
   }
@@ -83,6 +83,31 @@ function openParent(root, rel, create) {
   } catch (error) {
     closeSync(fd);
     throw error;
+  }
+}
+
+/** Validate an existing managed directory without following any component.
+ * @param {string} root @param {string} rel
+ */
+export function managedDirectory(root, rel) {
+  let parent;
+  let fd;
+  try {
+    parent = openParent(root, rel, false, true);
+    fd = openSync(parent.target, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+    return true;
+  } catch (error) {
+    if (/** @type {NodeJS.ErrnoException} */ (error).code === 'ENOENT') {
+      return false;
+    }
+    throw error;
+  } finally {
+    if (fd !== undefined) {
+      closeSync(fd);
+    }
+    if (parent !== undefined) {
+      closeSync(parent.fd);
+    }
   }
 }
 
@@ -164,6 +189,10 @@ export function validatePackageInputs(root) {
     '.yarnrc',
     '.yarnrc.yml',
     'pnpm-workspace.yaml',
+    'pnpmfile.cjs',
+    '.pnpmfile.cjs',
+    'mise.toml',
+    'mise.lock',
     'bunfig.toml',
     'requirements.txt',
     'pyproject.toml',
@@ -176,4 +205,5 @@ export function validatePackageInputs(root) {
   ]) {
     readManaged(root, rel);
   }
+  managedDirectory(root, '.venv');
 }

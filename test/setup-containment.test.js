@@ -65,6 +65,10 @@ it.each([
   'yarn.lock',
   'bun.lock',
   'bun.lockb',
+  'pnpmfile.cjs',
+  '.pnpmfile.cjs',
+  'mise.toml',
+  'mise.lock',
 ])('rejects linked package manager input %s', (name) => {
   const { root, outside } = fixture();
   writeFileSync(path.join(root, 'package.json'), '{}');
@@ -108,3 +112,32 @@ it.each([
   await expect(setup(root, { install: true, scaffold: false })).rejects.toThrow(/Unsafe/);
   expect(readFileSync(outside, 'utf8')).toBe('{}');
 });
+
+it.each(['mise.toml', 'mise.lock'])(
+  'rejects linked %s with scaffolding disabled before installers run',
+  async (name) => {
+    const { root, outside } = fixture();
+    symlinkSync(outside, path.join(root, name));
+    await expect(setup(root, { install: true, scaffold: false })).rejects.toThrow(/Unsafe/);
+    expect(readFileSync(outside, 'utf8')).toBe('{}');
+  },
+);
+
+it.each(['uv', 'poetry'])(
+  'rejects a linked Python environment for %s before installation',
+  async (manager) => {
+    const { root, outside } = fixture();
+    writeFileSync(
+      path.join(root, 'pyproject.toml'),
+      manager === 'poetry'
+        ? '[tool.poetry]\nname = "synthetic"\nversion = "0.0.0"\n'
+        : '[project]\nname = "synthetic"\nversion = "0.0.0"\n',
+    );
+    const external = path.join(path.dirname(outside), 'external-venv');
+    mkdirSync(external);
+    writeFileSync(path.join(external, 'marker'), 'unchanged');
+    symlinkSync(external, path.join(root, '.venv'));
+    await expect(setup(root, { install: true, scaffold: false })).rejects.toThrow(/Unsafe/);
+    expect(readFileSync(path.join(external, 'marker'), 'utf8')).toBe('unchanged');
+  },
+);

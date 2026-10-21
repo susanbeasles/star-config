@@ -6,7 +6,12 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { readManaged, writeManaged, validatePackageInputs } from './managed-files.js';
+import {
+  readManaged,
+  writeManaged,
+  validatePackageInputs,
+  managedDirectory,
+} from './managed-files.js';
 import { GUARD, HOOKS, validateHostPath } from './hook-boundary.js';
 import { IS_SEA, version } from './assets.js';
 import { NPM_NAME } from './constants.js';
@@ -145,7 +150,7 @@ function installPython(ctx) {
     log(yellow('  ⚠ uv not found: install it (mise install) to get the .venv'));
     return;
   }
-  if (!existsSync(path.join(ctx.root, '.venv'))) {
+  if (!managedDirectory(ctx.root, '.venv')) {
     // "a venv with your name on it"
     step('uv', ['venv', '--prompt', ctx.repoName, '.venv'], ctx.root, 'uv venv');
   }
