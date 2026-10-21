@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * `star-config setup`: detect → scaffold → install per-stack deps → mise tools → git hooks.
+ * `star-config setup`: detect → scaffold → mise tools → install per-stack deps → git hooks.
  * Every install step is idempotent and skipped (with a hint) when its tool is missing.
  */
 import { spawnSync } from 'node:child_process';
@@ -280,6 +280,7 @@ export async function setup(initial, { force = false, scaffold = true, install =
   ctx = loadContext(ctx.root, {}, true);
   if (install) {
     log(bold('\nInstall'));
+    installMise(ctx);
     if (ctx.stacks.node) {
       installNode(ctx);
     }
@@ -289,7 +290,6 @@ export async function setup(initial, { force = false, scaffold = true, install =
     if (ctx.stacks.rust) {
       installRust(ctx);
     }
-    installMise(ctx);
   }
   log(bold('\nHooks'));
   const hooksCode = installHooks(ctx);
