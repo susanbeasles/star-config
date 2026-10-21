@@ -63,3 +63,22 @@ it.each([false, true])('selects a valid uv sync mode with lockfile=%s', (locked)
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+it.each(['npm', 'pnpm', 'yarn', 'bun'])(
+  'bootstraps the exact CLI for %s projects without assuming a declared dependency',
+  (pm) => {
+    const job = parse(githubWorkflow({ stacks: { node: { pm } }, version: '0.2.0' })).jobs.check;
+    const bootstrap = job.steps.find((step) => step.name === 'Install pinned star-config CLI');
+    expect(bootstrap['working-directory']).toBe('${{ runner.temp }}');
+    expect(bootstrap.run).toContain('"star-config@0.2.0"');
+    expect(bootstrap.run).toContain('--ignore-scripts');
+    expect(bootstrap.run).toContain('--registry https://registry.npmjs.org');
+    expect(bootstrap.run).toContain('GITHUB_PATH');
+    expect(bootstrap.env.NPM_CONFIG_USERCONFIG).toBe('/dev/null');
+  },
+);
+it('rejects non-exact CLI versions instead of generating a mutable or executable bootstrap', () => {
+  for (const version of ['latest', '^0.2.0', '0.2.0;echo unsafe']) {
+    expect(() => githubWorkflow({ stacks: { node: { pm: 'npm' } }, version })).toThrow(/exact/);
+  }
+});

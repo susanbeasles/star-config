@@ -238,6 +238,24 @@ const binaryInstall = (version) => `      - name: Install star-config (checksum-
         run: curl -fsSL ${INSTALL_URL} | sh -s -- --version ${version}
 `;
 
+/** Install the exact CLI in a clean runner directory, without project lifecycle scripts.
+ * @param {string} version
+ */
+function pinnedCliInstall(version) {
+  if (!/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(version)) {
+    throw new Error('An exact star-config version is required for CI');
+  }
+  return `      - name: Install pinned star-config CLI
+        working-directory: \${{ runner.temp }}
+        env:
+          NPM_CONFIG_USERCONFIG: /dev/null
+          NPM_CONFIG_GLOBALCONFIG: /dev/null
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund --package-lock=false --registry https://registry.npmjs.org --prefix "$RUNNER_TEMP/star-config-cli" "star-config@${version}"
+          echo "$RUNNER_TEMP/star-config-cli/node_modules/.bin" >> "$GITHUB_PATH"
+`;
+}
+
 /** CI installs declared dependencies without registering developer hooks.
  * @param {NonNullable<Ctx['stacks']['python']>} python
  */
@@ -264,7 +282,9 @@ function pythonCiSteps(python) {
 export function githubWorkflow(ctx) {
   const s = ctx.stacks;
   const pythonSteps = s.python ? pythonCiSteps(s.python) : '';
-  const nodeSteps = s.node ? NODE_CI_STEPS[s.node.pm] : binaryInstall(ctx.version);
+  const nodeSteps = s.node
+    ? NODE_CI_STEPS[s.node.pm] + pinnedCliInstall(ctx.version)
+    : binaryInstall(ctx.version);
   const e2e = s.node?.web
     ? `
   e2e:
@@ -278,7 +298,7 @@ export function githubWorkflow(ctx) {
         with:
           node-version: 24
       - run: npm ci
-      - run: npx playwright install --with-deps
+${pinnedCliInstall(ctx.version)}      - run: npx playwright install --with-deps
       - run: .star/run test --e2e
 `
     : '';
