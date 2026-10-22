@@ -1,7 +1,7 @@
 {
   "version": "0.2.0",
   "files": {
-    ".claude/settings.json": "2a3984b35a8649350a45b30023f1b5b533a82d1d789aa3d36ea4546769576def",
+    ".claude/settings.json": "acb603813a02b426be19f9f6cd3cc9acb46a17a4fcd283f43b19884384b061fe",
     ".codex/config.toml": "b03ac9766db8bda827a2df7e9313174213e28a17667c37fa209fc5e2a7124255",
     ".devcontainer/devcontainer.json": "866a90271eeb907e984675be8aededfd5e9fb4d0f71a0b8111d2fb7b56e089b3",
     ".devcontainer/post-create.sh": "589560ecf5648a70a96232bda97e7c52de82d70bd5b8612e6afaa4ad2cbbe97e",
@@ -9,14 +9,15 @@
     ".github/CODEOWNERS": "64245117751cf746e68e8acea1a889e80835da12549284f58f89672d53e23146",
     ".github/copilot-instructions.md": "df43807ff6bd13adef03be9312db6812e1c1f68a97944162c5635180d55e1176",
     ".github/pull_request_template.md": "5c45c987f5baca5c453e663181f5e10510f46b983e70955f180c76138b1f152d",
-    ".husky/pre-push": "f4e843b17c6763685b4b472c87d6a9065be71b88640823ae5f68364bace4541a",
+    ".husky/pre-commit": "aa661f2f292841819bc7f5c10d9eb48ec8268a5dbbe503e255bd49b111b8fb49",
+    ".husky/pre-push": "a5f0aa09e11a16d7aabdc7fdb2afa35cfcfa042b1f1a1c8091be03635d1c950a",
     ".prettierignore": "93e052a0002cdf8d85f68df9f5ded589e26f74cc76d55c01354893169fab38ac",
     ".shellcheckrc": "e3c3c5e53677a9a1f44e72e666765d045926ab5b37eecac28dfd8ac3db8216d7",
     ".vscode/extensions.json": "ebf7c35af489024c838517e250c5b5bcd61f95f0d97d9742ffa3f9fb4faf31d7",
     ".vscode/settings.json": "40c82924054514596110ef19d9d70f4adce66d6bc7c0bc6f1d0598f62f4a4bd6",
     ".yamllint.yml": "0c387e90db981d9b768b094eda1a0bf5b9ea61178664b4da4c0495e265cb2541",
     "AGENTS.md": "d853241be959dee745277442faee481365dfd79898f513a0d0251a08016ca57c",
-    "CLAUDE.md": "2e0c5e42e99072550f4f2117552add5fa82199b2c7ce0244df61e1c109379cc9",
+    "CLAUDE.md": "0d24aa7e39b673ed8001cd6f27b316ffbbc145b86fbd57adad671521e2d42bff",
     "mise.toml": "1ae332c874a4fff35eca406cde5d80368bd55482549913b8e392d126b1cf7375",
     "SECURITY.md": "884e2073e15963f61385c7cac572a403b6ec03510a1f5f2795717f03fa24a7c9",
     "sonar-project.properties": "19dc4a37b948921cf35d30d22097c645cc616b16368299560f67ab7706dccd19"

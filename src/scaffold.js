@@ -7,8 +7,7 @@
  *   - edited by a human  → kept (reported), unless --force
  */
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
+import { managedPath, readManaged, writeManaged } from './managed-files.js';
 import {
   agentsMd,
   claudeMd,
@@ -80,17 +79,18 @@ export function planRaw(ctx) {
 }
 
 /**
- * @param {string} target
+ * @param {string} root
+ * @param {string} rel
  * @param {FileSpec} spec
  * @param {string | undefined} recordedHash
  * @param {boolean} force
  * @returns {'written' | 'updated' | 'kept' | 'unchanged'}
  */
-function decide(target, spec, recordedHash, force) {
-  if (!existsSync(target)) {
+function decide(root, rel, spec, recordedHash, force) {
+  const current = readManaged(root, rel);
+  if (current === null) {
     return 'written';
   }
-  const current = readFileSync(target, 'utf8');
   if (current === spec.content) {
     return 'unchanged';
   }
@@ -143,8 +143,9 @@ export async function converge(root, load, opts) {
 
 /** @param {string} root */
 function readManifest(root) {
+  const contents = readManaged(root, MANIFEST);
   try {
-    return JSON.parse(readFileSync(path.join(root, MANIFEST), 'utf8'));
+    return contents === null ? { version: null, files: {} } : JSON.parse(contents);
   } catch {
     return { version: null, files: {} };
   }
@@ -157,6 +158,9 @@ function readManifest(root) {
  * @returns {{ written: string[], updated: string[], kept: string[], unchanged: string[] }}
  */
 export function apply(root, files, { force = false, version, dryRun = false }) {
+  for (const rel of [...Object.keys(files), MANIFEST]) {
+    managedPath(root, rel);
+  }
   const manifest = readManifest(root);
   const result = {
     written: /** @type {string[]} */ ([]),
@@ -165,25 +169,20 @@ export function apply(root, files, { force = false, version, dryRun = false }) {
     unchanged: /** @type {string[]} */ ([]),
   };
   for (const [rel, spec] of Object.entries(files)) {
-    const target = path.join(root, rel);
-    const action = decide(target, spec, manifest.files[rel], force);
+    const action = decide(root, rel, spec, manifest.files[rel], force);
     if (action !== 'kept') {
       manifest.files[rel] = sha(spec.content);
     }
     if ((action === 'written' || action === 'updated') && !dryRun) {
-      mkdirSync(path.dirname(target), { recursive: true });
-      writeFileSync(target, spec.content);
-      if (spec.mode) {
-        chmodSync(target, spec.mode);
-      }
+      writeManaged(root, rel, spec.content, spec.mode);
     }
     result[action].push(rel);
   }
   if (!dryRun) {
     manifest.version = version;
-    mkdirSync(path.join(root, '.star'), { recursive: true });
-    writeFileSync(
-      path.join(root, MANIFEST),
+    writeManaged(
+      root,
+      MANIFEST,
       `${JSON.stringify({ version, files: sortKeys(manifest.files) }, null, 2)}\n`,
     );
   }

@@ -257,6 +257,12 @@ describe('autonomous merge gate', () => {
 });
 
 describe('Dependabot change boundary', () => {
+  it.each(['release.yml', 'dependabot-merge.yml'])(
+    'requires review for privileged Action updates in %s',
+    (name) => {
+      expect(eligibleFiles([{ ...workflow(), filename: `.github/workflows/${name}` }])).toBe(false);
+    },
+  );
   it('admits an immutable action revision update', () => {
     expect(eligibleFiles([workflow()])).toBe(true);
   });

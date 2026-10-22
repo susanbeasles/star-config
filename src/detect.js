@@ -5,6 +5,7 @@
  * dependabot ecosystems, devcontainer features) is derived from this result.
  */
 import { existsSync, readFileSync } from 'node:fs';
+import { readManaged, validatePackageInputs } from './managed-files.js';
 import path from 'node:path';
 
 /**
@@ -45,10 +46,14 @@ export const DOCKERFILE_RE = /^(Dockerfile|Containerfile)(\..+)?$|\.(dockerfile|
 /**
  * @param {string} root
  * @param {string} rel
+ * @param {boolean} managed
  */
-function readJson(root, rel) {
+function readJson(root, rel, managed) {
+  const content = managed ? readManaged(root, rel) : null;
   try {
-    return JSON.parse(readFileSync(path.join(root, rel), 'utf8'));
+    return managed
+      ? JSON.parse(content ?? 'null')
+      : JSON.parse(readFileSync(path.join(root, rel), 'utf8'));
   } catch {
     return null;
   }
@@ -57,13 +62,17 @@ function readJson(root, rel) {
 /**
  * @param {string} root
  * @param {string[]} files
+ * @param {boolean} managed
  * @returns {NodeStack | null}
  */
-function detectNode(root, files) {
+function detectNode(root, files, managed) {
+  if (managed) {
+    validatePackageInputs(root);
+  }
   if (!files.includes('package.json') && !existsSync(path.join(root, 'package.json'))) {
     return null;
   }
-  const pkg = readJson(root, 'package.json') ?? {};
+  const pkg = readJson(root, 'package.json', managed) ?? {};
   const deps = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies };
   const has = (/** @type {string} */ name) => Object.hasOwn(deps, name);
   const lock = (/** @type {string} */ name) =>
@@ -121,16 +130,17 @@ function detectPython(files) {
 /**
  * @param {string} root  repo root (absolute)
  * @param {string[]} files  repo-relative POSIX paths
+ * @param {boolean} [managed]
  * @returns {Stacks}
  */
-export function detectStacks(root, files) {
+export function detectStacks(root, files, managed = false) {
   const dockerFiles = files.filter((f) => DOCKERFILE_RE.test(base(f)));
   const wrangler = files.filter((f) => /^wrangler\.(toml|json|jsonc)$/.test(base(f)));
   const spm = files.some((f) => base(f) === 'Package.swift');
   const xcode = files.some((f) => /\.xcodeproj\//.test(f) || /\.xcworkspace\//.test(f));
   const swiftFiles = files.some((f) => ext(f) === 'swift');
   return {
-    node: detectNode(root, files),
+    node: detectNode(root, files, managed),
     python: detectPython(files),
     rust: files.some((f) => base(f) === 'Cargo.toml'),
     swift: spm || xcode || swiftFiles ? { spm, xcode } : null,

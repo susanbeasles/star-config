@@ -1,4 +1,5 @@
 // @ts-check
+import { guardCommand } from '../hook-boundary.js';
 import { describeStacks } from '../detect.js';
 
 /** @typedef {import('./governance.js').Ctx} Ctx */
@@ -129,8 +130,8 @@ export function claudeMd() {
 
 ## Claude Code specifics
 
-- After every edit, a PostToolUse hook runs \`.star/run agent-hook\` on the changed file: it formats
-  and lints that file. If it reports errors, fix them before moving on.
+- After every edit, a PostToolUse hook calls the administrator-installed agent-guard runner, which
+  formats and lints the changed file in an isolated runtime. If it reports errors, fix them before moving on.
 - Use plan mode for changes touching auth, data access, infra, or more than ~5 files.
 - Permissions in \`.claude/settings.json\` deny reading secrets; don't work around them.
 `;
@@ -187,7 +188,7 @@ export function claudeSettings(ctx) {
         PostToolUse: [
           {
             matcher: 'Edit|MultiEdit|Write',
-            hooks: [{ type: 'command', command: '"$CLAUDE_PROJECT_DIR"/.star/run agent-hook' }],
+            hooks: [{ type: 'command', command: guardCommand('post-edit') }],
           },
         ],
       },

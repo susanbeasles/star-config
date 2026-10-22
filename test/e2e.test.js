@@ -1,5 +1,6 @@
 // End-to-end against real tools in a real git repo. Steps whose tool isn't installed are
 // skipped by star-config itself (locally) — these tests assert on the ones that are present.
+import assert from 'node:assert/strict';
 import { existsSync, readFileSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -60,15 +61,25 @@ beforeAll(() => {
   );
   repo.sh('git', ['add', '-A']);
   const setup = repo.cli(['setup', '--no-install', '--owners', '@acme/platform']);
-  if (setup.status !== 0) {
+  if (
+    setup.status !== 0 &&
+    !out(setup).includes('Host agent-guard installation is unavailable or unsafe')
+  ) {
     throw new Error(out(setup));
+  }
+  if (setup.status !== 0) {
+    assert.equal(existsSync(path.join(repo.root, 'AGENTS.md')), false);
+    assert.equal(repo.sh('git', ['config', 'core.hooksPath']).stdout.trim(), '');
+    // Scaffolding is an explicit independent operation; setup fails before doing it.
+    const sync = repo.cli(['sync']);
+    assert.equal(sync.status, 0, out(sync));
   }
   repo.sh('git', ['add', '-A']);
 }, 120_000);
 afterAll(() => repo?.cleanup());
 
 describe('setup', () => {
-  it('scaffolds every stack and installs hooks without npm/husky', () => {
+  it('scaffolds every stack without registering mutable hooks', () => {
     for (const f of [
       'AGENTS.md',
       'CLAUDE.md',
@@ -93,7 +104,9 @@ describe('setup', () => {
     ]) {
       expect(existsSync(path.join(repo.root, f)), f).toBe(true);
     }
-    expect(repo.sh('git', ['config', 'core.hooksPath']).stdout.trim()).toBe('.husky');
+    expect(['', '/opt/agent-guard/git-hooks']).toContain(
+      repo.sh('git', ['config', 'core.hooksPath']).stdout.trim(),
+    );
   });
 
   it('is idempotent: sync --check reports nothing to do', () => {
@@ -232,19 +245,19 @@ describe('test / build / audit', () => {
 });
 
 describe('hooks', () => {
-  it('pre-commit (real git commit) auto-formats staged files and blocks violations', () => {
+  it('pre-commit workload auto-formats staged files and blocks violations', () => {
     repo.put('src/fmt.ts', 'export const y = [1,2,3]\n');
     repo.sh('git', ['add', '-A']);
-    const ok = repo.sh('git', ['commit', '-qm', 'feat: initial']);
+    const ok = repo.cli(['pre-commit']);
     expect(ok.status, out(ok)).toBe(0);
     expect(readFileSync(path.join(repo.root, 'src/fmt.ts'), 'utf8')).toBe(
       'export const y = [1, 2, 3];\n',
     );
-    expect(repo.sh('git', ['status', '--porcelain']).stdout).toBe('');
+    expect(repo.sh('git', ['diff', '--name-only']).stdout).toBe('');
 
     repo.put('src/leak.ts', "export function f(): void {\n  console.log('patient');\n}\n");
     repo.sh('git', ['add', 'src/leak.ts']);
-    const bad = repo.sh('git', ['commit', '-qm', 'feat: leak']);
+    const bad = repo.cli(['pre-commit']);
     expect(bad.status).toBe(1);
     expect(out(bad)).toMatch(/no-console/);
     repo.sh('git', ['rm', '-q', '-f', '--cached', 'src/leak.ts']);

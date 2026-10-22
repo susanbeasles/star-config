@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.star/run agent-hook"
+            "command": "if [ ! -x /opt/agent-guard/bin/agent-guard ]; then echo 'agent-guard is unavailable: ask the host administrator to install the reviewed isolated runner at /opt/agent-guard/bin/agent-guard; no checkout fallback is permitted.' >&2; exit 127; fi; exec /opt/agent-guard/bin/agent-guard check post-edit"
           }
         ]
       }

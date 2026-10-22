@@ -1,6 +1,7 @@
 // @ts-check
+import { guardCommand } from '../hook-boundary.js';
 import { INSTALL_URL } from '../constants.js';
-import { MISE_TOOLS } from '../tools.js';
+import { MISE_TOOLS, PY_DEV } from '../tools.js';
 
 /** @typedef {import('./governance.js').Ctx} Ctx */
 
@@ -26,6 +27,9 @@ export function miseToolsFor(s) {
   }
   if (s.python) {
     tools.push('ruff');
+    if (s.python.manager === 'poetry') {
+      tools.push('poetry');
+    }
   }
   if (s.rust) {
     tools.push('cargo-deny');
@@ -79,7 +83,7 @@ exit 127
 export function gitHook(hook) {
   return `#!/bin/sh
 # Managed by star-config (${hook}). Bypassing with --no-verify is visible in review and CI still enforces.
-exec "$(git rev-parse --show-toplevel)/.star/run" ${hook}
+${guardCommand(hook)}
 `;
 }
 
@@ -103,7 +107,6 @@ export function devcontainerJson(ctx) {
       name: ctx.repoName,
       image: 'mcr.microsoft.com/devcontainers/base:ubuntu-24.04',
       features,
-      postCreateCommand: 'bash .devcontainer/post-create.sh',
       customizations: { vscode: { extensions: vscodeExtensions(ctx) } },
       forwardPorts: s.node?.web ? [5173, 3000] : [],
     },
@@ -114,23 +117,10 @@ export function devcontainerJson(ctx) {
 
 export function postCreateSh() {
   return `#!/usr/bin/env bash
-# Managed by star-config: provisions a Codespace / devcontainer.
+# Managed by star-config: automatic checkout-controlled provisioning is disabled.
 set -euo pipefail
-if ! command -v mise >/dev/null 2>&1; then
-  curl -fsSL https://mise.run | sh
-  # shellcheck disable=SC2016 # expanded later by the interactive shell, on purpose
-  echo 'eval "$(~/.local/bin/mise activate bash)"' >>~/.bashrc
-  export PATH="$HOME/.local/bin:$PATH"
-fi
-mise trust --yes
-mise install --yes
-if [[ -f package.json ]]; then
-  npm ci --no-audit --no-fund
-fi
-if [[ ! -x node_modules/.bin/star-config ]] && ! command -v star-config >/dev/null 2>&1; then
-  curl -fsSL ${INSTALL_URL} | sh
-fi
-.star/run setup --no-scaffold
+echo 'Automatic setup is disabled. Provision the reviewed host runner, then run setup explicitly.' >&2
+exit 127
 `;
 }
 
@@ -248,10 +238,53 @@ const binaryInstall = (version) => `      - name: Install star-config (checksum-
         run: curl -fsSL ${INSTALL_URL} | sh -s -- --version ${version}
 `;
 
+/** Install the exact CLI in a clean runner directory, without project lifecycle scripts.
+ * @param {string} version
+ */
+function pinnedCliInstall(version) {
+  if (!/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(version)) {
+    throw new Error('An exact star-config version is required for CI');
+  }
+  return `      - name: Install pinned star-config CLI
+        working-directory: \${{ runner.temp }}
+        env:
+          NPM_CONFIG_USERCONFIG: /dev/null
+          NPM_CONFIG_GLOBALCONFIG: /dev/null
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund --package-lock=false --registry https://registry.npmjs.org --prefix "$RUNNER_TEMP/star-config-cli" "star-config@${version}"
+          echo "$RUNNER_TEMP/star-config-cli/node_modules/.bin" >> "$GITHUB_PATH"
+`;
+}
+
+/** CI installs declared dependencies without registering developer hooks.
+ * @param {NonNullable<Ctx['stacks']['python']>} python
+ */
+function pythonCiSteps(python) {
+  const tools = Object.entries(PY_DEV)
+    .map(([name, version]) => `${name}==${version}`)
+    .join(' ');
+  let project;
+  if (python.manager === 'poetry') {
+    project = `POETRY_VIRTUALENVS_IN_PROJECT=true poetry sync --all-groups\n          uv pip install --python .venv/bin/python ${tools}`;
+  } else if (python.hasPyproject) {
+    project = `if [ -f uv.lock ]; then uv sync --frozen --all-groups; else uv sync --all-groups; fi\n          uv pip install --python .venv/bin/python ${tools}`;
+  } else {
+    project = `uv venv .venv\n          if [ -f requirements.txt ]; then uv pip install --python .venv/bin/python -r requirements.txt; fi\n          uv pip install --python .venv/bin/python ${tools}`;
+  }
+  return `      - name: Install Python test prerequisites
+        run: |
+          ${project}
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+`;
+}
+
 /** @param {Ctx} ctx */
 export function githubWorkflow(ctx) {
   const s = ctx.stacks;
-  const nodeSteps = s.node ? NODE_CI_STEPS[s.node.pm] : binaryInstall(ctx.version);
+  const pythonSteps = s.python ? pythonCiSteps(s.python) : '';
+  const nodeSteps = s.node
+    ? NODE_CI_STEPS[s.node.pm] + pinnedCliInstall(ctx.version)
+    : binaryInstall(ctx.version);
   const e2e = s.node?.web
     ? `
   e2e:
@@ -265,7 +298,7 @@ export function githubWorkflow(ctx) {
         with:
           node-version: 24
       - run: npm ci
-      - run: npx playwright install --with-deps
+${pinnedCliInstall(ctx.version)}      - run: npx playwright install --with-deps
       - run: .star/run test --e2e
 `
     : '';
@@ -296,8 +329,7 @@ jobs:
           fetch-depth: 0 # gitleaks scans full history
           persist-credentials: false
       - uses: jdx/mise-action@v3 # TODO pin to SHA — installs mise.toml tools (checksums from mise.lock)
-${nodeSteps}      - run: .star/run setup --no-scaffold
-      - run: .star/run check --coverage
+${nodeSteps}${pythonSteps}      - run: .star/run check --coverage
 ${e2e}`;
 }
 

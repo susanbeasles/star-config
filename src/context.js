@@ -1,5 +1,6 @@
 // @ts-check
 import { existsSync, readFileSync } from 'node:fs';
+import { readManaged } from './managed-files.js';
 import path from 'node:path';
 import { version } from './assets.js';
 import { detectStacks } from './detect.js';
@@ -15,31 +16,34 @@ import { gitRoot, listRepoFiles } from './git.js';
  * @typedef {import('./templates/governance.js').Ctx & { root: string, config: RepoConfig, skip: string[] }} Context
  */
 
-/** @param {string} root */
-export function readRepoConfig(root) {
-  const file = path.join(root, '.star', 'config.json');
-  if (!existsSync(file)) {
-    return /** @type {RepoConfig} */ ({});
+/** @param {string} root @param {boolean} [managed] */
+export function readRepoConfig(root, managed = false) {
+  if (!managed) {
+    const file = path.join(root, '.star/config.json');
+    return /** @type {RepoConfig} */ (
+      existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {}
+    );
   }
-  return /** @type {RepoConfig} */ (JSON.parse(readFileSync(file, 'utf8')));
+  return /** @type {RepoConfig} */ (JSON.parse(readManaged(root, '.star/config.json') ?? '{}'));
 }
 
 /**
  * @param {string} cwd
  * @param {Partial<RepoConfig>} [overrides]
+ * @param {boolean} [managed] Require descriptor-relative reads for setup.
  * @returns {Context}
  */
-export function loadContext(cwd, overrides = {}) {
+export function loadContext(cwd, overrides = {}, managed = false) {
   const root = gitRoot(cwd);
   if (!root) {
     throw new Error('Not inside a git repository. Run `git init` first.');
   }
   const files = listRepoFiles(root);
   const config = {
-    ...readRepoConfig(root),
+    ...readRepoConfig(root, managed),
     ...Object.fromEntries(Object.entries(overrides).filter(([, v]) => v !== undefined)),
   };
-  const stacks = detectStacks(root, files);
+  const stacks = detectStacks(root, files, managed);
   if (stacks.node && config.jsProfile) {
     stacks.node.lintProfile = config.jsProfile;
   }

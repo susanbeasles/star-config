@@ -10,8 +10,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { assetPath } from './assets.js';
-import { NPM_DEV } from './tools.js';
+import { validateHostPath, validateHostTree } from './hook-boundary.js';
 import { bold, dim, exec, green, log, red } from './runner.js';
+
+export const SCANNER = '/opt/star-config/sonar/bin/sonar-scanner';
+export const SCANNER_HOME = '/opt/star-config/sonar/home';
+export const SCANNER_CACHE = '/opt/star-config/sonar/cache';
 
 const URL = 'http://127.0.0.1:9000';
 
@@ -80,16 +84,35 @@ export function sonar(sub, { cwd, purge = false }) {
         );
         return 1;
       }
+      if (process.env.SONAR_HOST_URL && process.env.SONAR_HOST_URL !== URL) {
+        throw new Error('Sonar scans require the approved local endpoint http://127.0.0.1:9000');
+      }
+      // Resolve no package or repository-selected executable while a token is present.
+      validateHostPath(SCANNER);
+      validateHostTree(SCANNER_HOME);
+      validateHostTree(SCANNER_CACHE);
       return exec(
-        'npx',
+        SCANNER,
         [
-          '--yes',
-          `@sonar/scan@${NPM_DEV['@sonar/scan']}`,
-          `-Dsonar.host.url=${process.env.SONAR_HOST_URL ?? URL}`,
+          `-Dsonar.host.url=${URL}`,
+          `-Dsonar.userHome=${SCANNER_CACHE}`,
           `-Dsonar.projectKey=${projectKey(cwd)}`,
           '-Dsonar.exclusions=**/node_modules/**,**/.venv/**,**/target/**,**/dist/**,**/coverage/**',
         ],
-        { cwd },
+        {
+          cwd,
+          env: {
+            SONAR_TOKEN: process.env.SONAR_TOKEN,
+            HOME: SCANNER_HOME,
+            SONAR_USER_HOME: SCANNER_CACHE,
+            XDG_CACHE_HOME: SCANNER_CACHE,
+            JAVA_TOOL_OPTIONS: `-Duser.home=${SCANNER_HOME}`,
+            PATH: '/usr/bin:/bin',
+            ...(process.platform === 'win32'
+              ? { SystemRoot: process.env.SystemRoot, USERPROFILE: SCANNER_HOME }
+              : {}),
+          },
+        },
       );
     }
     case 'down':

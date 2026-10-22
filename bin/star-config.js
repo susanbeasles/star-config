@@ -94,7 +94,7 @@ async function main() {
       });
     }
     case 'sync':
-      return sync(ctx(), { force: values.force, dryRun: values.check });
+      return sync(loadContext(cwd, {}, true), { force: values.force, dryRun: values.check });
     case 'hooks':
       return installHooks(ctx());
     case 'doctor':
