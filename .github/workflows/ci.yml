@@ -38,7 +38,13 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:coverage
       - name: Qualify real Git hook dispatch in the ephemeral runner
-        run: sudo --preserve-env=PATH env STAR_CONFIG_TEST_HOST_FIXTURE=1 npm test -- test/git-hook-dispatch.test.js
+        run: |
+          # Secure the fixture's parent without changing any installed tool directories.
+          test -d /opt
+          test ! -L /opt
+          sudo chown root:root /opt
+          sudo chmod 0755 /opt
+          sudo --preserve-env=PATH env STAR_CONFIG_TEST_HOST_FIXTURE=1 npm test -- test/git-hook-dispatch.test.js
       - run: node bin/star-config.js lint
       - run: node bin/star-config.js audit
       - name: Prepare artifact round trip
