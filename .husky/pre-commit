@@ -1,3 +1,3 @@
 #!/bin/sh
 # Managed by star-config (pre-commit). Bypassing with --no-verify is visible in review and CI still enforces.
-if [ ! -x /opt/agent-guard/bin/agent-guard ]; then echo 'agent-guard is unavailable: ask the host administrator to install the reviewed isolated runner at /opt/agent-guard/bin/agent-guard; no checkout fallback is permitted.' >&2; exit 127; fi; exec /opt/agent-guard/bin/agent-guard check pre-commit
+if [ ! -x /opt/agent-guard/bin/agent-guard ]; then echo 'agent-guard is unavailable: ask the host administrator to install the reviewed isolated runner at /opt/agent-guard/bin/agent-guard; no checkout fallback is permitted.' >&2; exit 127; fi; exec /opt/agent-guard/bin/agent-guard check pre-commit "$@"

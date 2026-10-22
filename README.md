@@ -225,10 +225,18 @@ Pre-commit needs controller-created sanitized Git/index metadata, never real
 host `.git` configuration, hooks, credentials or objects. Formatting changes and
 staging requests are returned as proposals for separate operator review, baseline
 conflict checks, application and staging; the runner never writes the live checkout. Forward
-hook stdin and preserve failures (including post-edit exit 2); never accept
+hook stdin and Git hook arguments (including the pre-push remote name and location),
+and preserve failures (including post-edit exit 2); never accept
 checkout-provided runtime/image/path choices. No Stop hook was previously
 configured. Actual isolation, staged-file behavior and client enforcement require
 integration tests against the host runner; template tests alone do not prove them.
+
+CI separately qualifies real Git commit/push dispatch with a fixture installed at
+the fixed host paths in its ephemeral Linux runner. It verifies hook registration,
+remote arguments, stdin, rejected commits/pushes, missing-runner failure, and
+post-edit exit status. The fixture refuses any existing host installation and
+accepts only its synthetic checkout. This proves the callback transport, not the
+external runtime's isolation, scanner installation, or agent-client enforcement.
 
 Managed setup/sync reads and writes currently require Linux's descriptor-relative
 filesystem support and refuse other hosts. They reject links and anchor operations

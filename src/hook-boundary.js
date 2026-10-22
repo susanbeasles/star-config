@@ -9,7 +9,8 @@ export const HOOKS = '/opt/agent-guard/git-hooks';
  * @param {'pre-commit' | 'pre-push' | 'post-edit' | 'stop'} phase
  */
 export function guardCommand(phase) {
-  return `if [ ! -x ${GUARD} ]; then echo 'agent-guard is unavailable: ask the host administrator to install the reviewed isolated runner at ${GUARD}; no checkout fallback is permitted.' >&2; exit 127; fi; exec ${GUARD} check ${phase}`;
+  const args = phase === 'pre-commit' || phase === 'pre-push' ? ' "$@"' : '';
+  return `if [ ! -x ${GUARD} ]; then echo 'agent-guard is unavailable: ask the host administrator to install the reviewed isolated runner at ${GUARD}; no checkout fallback is permitted.' >&2; exit 127; fi; exec ${GUARD} check ${phase}${args}`;
 }
 
 /** Validate every component, refusing symlinks and worker-owned installations.
