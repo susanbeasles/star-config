@@ -7,7 +7,8 @@ WORKDIR /opt/star-config
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund && npm cache clean --force
 COPY mise.toml ./
-RUN set -euo pipefail; \
+# SHELL enables Bash pipefail; this step also enables errexit and nounset.
+RUN set -eu; \
     case "$TARGETARCH" in \
       amd64) platform=x64; digest=fe6dd17e68e09682b31d2e7bb7bb755d22636ac1af5d94621e300f2ca9e9fe8a ;; \
       arm64) platform=arm64; digest=e90904144ba4377c5fbe385f429830282c68f3b4f9c690bf6c5a2ae9b74a809b ;; \
@@ -22,7 +23,7 @@ RUN set -euo pipefail; \
     cp mise.toml /opt/mise-config/config.toml; \
     mise trust /opt/star-config/mise.toml; \
     mise install --yes; \
-    uv venv /opt/star-config/.venv; \
+    uv venv --no-python-downloads --python "$(mise where python)/bin/python3" /opt/star-config/.venv; \
     uv pip install --python /opt/star-config/.venv/bin/python pytest==9.1.1
 COPY bin ./bin
 COPY src ./src
