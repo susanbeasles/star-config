@@ -3,3 +3,9 @@ coverage/
 dist/
 *.tgz
 .DS_Store
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+runtime-image.id
+runtime-bundle/

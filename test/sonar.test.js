@@ -4,12 +4,11 @@ import path from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('../src/runner.js', async (original) => ({ ...(await original()), exec: vi.fn(() => 0) }));
 import { exec } from '../src/runner.js';
-import { sonar, SCANNER, SCANNER_HOME, SCANNER_CACHE } from '../src/sonar.js';
+import { sonar, SCANNER } from '../src/sonar.js';
 vi.mock('../src/hook-boundary.js', () => ({
   validateHostPath: vi.fn(),
-  validateHostTree: vi.fn(),
 }));
-import { validateHostPath, validateHostTree } from '../src/hook-boundary.js';
+import { validateHostPath } from '../src/hook-boundary.js';
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.clearAllMocks();
@@ -26,12 +25,8 @@ it('runs only the trusted installed scanner, ignoring project npm configuration 
     const [command, args, options] = vi.mocked(exec).mock.calls[0];
     expect(command).toBe(SCANNER);
     expect(validateHostPath).toHaveBeenCalledWith(SCANNER);
-    expect(validateHostTree).toHaveBeenCalledWith(SCANNER_HOME);
-    expect(validateHostTree).toHaveBeenCalledWith(SCANNER_CACHE);
-    expect(options.env.HOME).toBe(SCANNER_HOME);
-    expect(options.env.SONAR_USER_HOME).toBe(SCANNER_CACHE);
-    expect(options.env.JAVA_TOOL_OPTIONS).toBe(`-Duser.home=${SCANNER_HOME}`);
-    expect(args).toContain(`-Dsonar.userHome=${SCANNER_CACHE}`);
+    expect(args).toEqual([]);
+    expect(Object.keys(options.env).sort()).toEqual(['PATH', 'SONAR_TOKEN']);
     expect(args.join(' ')).not.toContain('synthetic-scan-token');
     expect(options.env.SONAR_TOKEN).toBe('synthetic-scan-token');
     for (const key of ['UNRELATED_SYNTHETIC_SECRET', 'NODE_OPTIONS', 'npm_config_registry']) {
@@ -62,13 +57,20 @@ it.each([
   expect(exec).not.toHaveBeenCalled();
 });
 
-it('rejects unsafe scanner cache before running with a token', () => {
-  vi.stubEnv('SONAR_TOKEN', 'synthetic-token');
-  vi.mocked(validateHostTree)
-    .mockImplementationOnce(() => {})
-    .mockImplementationOnce(() => {
-      throw new Error('unsafe cache');
-    });
-  expect(() => sonar('scan', { cwd: '/synthetic' })).toThrow('unsafe cache');
-  expect(exec).not.toHaveBeenCalled();
+it('leaves repository scanner properties outside the trusted client contract', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'star-sonar-'));
+  try {
+    writeFileSync(
+      path.join(root, 'sonar-project.properties'),
+      'sonar.host.url=https://attacker.invalid\nsonar.nodejs.executable=/untrusted\n',
+    );
+    vi.stubEnv('SONAR_TOKEN', 'synthetic-token');
+    expect(sonar('scan', { cwd: root })).toBe(0);
+    const [command, args, options] = vi.mocked(exec).mock.calls[0];
+    expect(command).toBe(SCANNER);
+    expect(args).toEqual([]);
+    expect(options.env).toEqual({ SONAR_TOKEN: 'synthetic-token', PATH: '/usr/bin:/bin' });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

@@ -1,0 +1,14 @@
+**
+!package.json
+!package-lock.json
+!mise.toml
+!bin
+!bin/**
+!src
+!src/**
+!configs
+!configs/**
+!runtime
+!runtime/Dockerfile
+!runtime/install_scanner.py
+!runtime/scan.properties

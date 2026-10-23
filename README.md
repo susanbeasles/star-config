@@ -149,14 +149,13 @@ export SONAR_TOKEN=…          # from My Account → Security (never committed)
 star-config sonar scan
 ```
 
-Scanning requires a reviewed, root-owned Sonar scanner installation at
-`/opt/star-config/sonar/bin/sonar-scanner`, with its dependencies protected by the
-operator. Repository npm configuration is never used to acquire a token-bearing
-scanner. The operator must also provision protected home and pre-populated cache
-directories at `/opt/star-config/sonar/home` and `/opt/star-config/sonar/cache`,
-including all scanner/JRE/plugin dependencies. Their contents must remain outside
-worker write access; a cache miss must fail rather than use the worker home.
-Missing or unsafe installations fail without downloading a replacement.
+Scanning requires the reviewed controller client at
+`/opt/star-config/sonar/bin/sonar-scanner`. Install the qualified
+[runtime bundle](runtime/README.md) separately. The controller selects the registered
+project key, immutable scanner image and isolated Sonar network; checkout scanner
+properties and npm configuration do not control acquisition or execution. Each scan
+uses a fresh private home/cache inside the container. Missing or unsafe installations
+fail without downloading a replacement. The CLI never launches the scanner on the host.
 
 Point the IDE extension at `http://127.0.0.1:9000` (Connected Mode) to get the same rules while
 you type.
@@ -184,6 +183,9 @@ npm run build:sea        # single-file binary for this platform → dist/
 ```
 
 ### Host-managed automatic checks
+
+The separately installed controller, scanner image, commissioning workflow and
+deployment bundle are in [`runtime/README.md`](runtime/README.md).
 
 Automatic Git and Claude callbacks dispatch only
 `/opt/agent-guard/bin/agent-guard check <phase>`. There is no PATH or environment

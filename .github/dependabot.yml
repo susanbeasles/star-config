@@ -35,3 +35,12 @@ updates:
     groups:
       containers-minor-patch:
         update-types: [minor, patch]
+  - package-ecosystem: docker
+    directory: "/runtime"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
