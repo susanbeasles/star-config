@@ -4,7 +4,8 @@
 name: star-sonarqube
 services:
   sonarqube:
-    image: sonarqube:26.10.0.133078-community
+    image: sonarqube:26.10.0.133078-community@sha256:0b3408443fb6a311253de27941b10977c9b977fd53be2265947bfe14161308b8
+    networks: [default, analysis]
     depends_on:
       db:
         condition: service_healthy
@@ -30,7 +31,7 @@ services:
       retries: 30
       start_period: 60s
   db:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb
     environment:
       POSTGRES_USER: sonar
       POSTGRES_PASSWORD: ${STAR_SONAR_DB_PASSWORD:?run via star-config sonar up}
@@ -47,3 +48,10 @@ volumes:
   sonarqube_extensions:
   sonarqube_logs:
   postgresql:
+networks:
+  default:
+    internal: true
+  analysis:
+    internal: true
+    driver_opts:
+      com.docker.network.bridge.gateway_mode_ipv4: isolated

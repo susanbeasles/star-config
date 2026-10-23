@@ -1,0 +1,27 @@
+[Unit]
+Description=Protected agent check controller
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -I /opt/agent-guard/lib/agent_guard.py serve
+ExecStopPost=/usr/bin/rm -f /opt/agent-guard/control.sock
+User=root
+Group=root
+UMask=0077
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/agent-guard
+RestrictAddressFamilies=AF_UNIX
+LimitNOFILE=512
+TasksMax=160
+MemoryMax=5G
+CPUQuota=250%
+
+[Install]
+WantedBy=multi-user.target

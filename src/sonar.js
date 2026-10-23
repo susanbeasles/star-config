@@ -6,16 +6,14 @@
  * in the environment and never written to disk or passed on the command line.
  */
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { assetPath } from './assets.js';
-import { validateHostPath, validateHostTree } from './hook-boundary.js';
+import { validateHostPath } from './hook-boundary.js';
 import { bold, dim, exec, green, log, red } from './runner.js';
 
 export const SCANNER = '/opt/star-config/sonar/bin/sonar-scanner';
-export const SCANNER_HOME = '/opt/star-config/sonar/home';
-export const SCANNER_CACHE = '/opt/star-config/sonar/cache';
 
 const URL = 'http://127.0.0.1:9000';
 
@@ -41,20 +39,6 @@ function compose(args, cwd = process.cwd()) {
     ['compose', '-f', assetPath('configs/sonarqube-compose.yml'), '--env-file', envFile(), ...args],
     { cwd },
   );
-}
-
-/** @param {string} cwd */
-function projectKey(cwd) {
-  const props = path.join(cwd, 'sonar-project.properties');
-  if (existsSync(props)) {
-    for (const line of readFileSync(props, 'utf8').split('\n')) {
-      const [key, ...value] = line.split('=');
-      if (key.trim() === 'sonar.projectKey' && value.length) {
-        return value.join('=').trim();
-      }
-    }
-  }
-  return path.basename(cwd).replaceAll(/[^A-Za-z0-9_.:-]/g, '-');
 }
 
 /**
@@ -89,31 +73,15 @@ export function sonar(sub, { cwd, purge = false }) {
       }
       // Resolve no package or repository-selected executable while a token is present.
       validateHostPath(SCANNER);
-      validateHostTree(SCANNER_HOME);
-      validateHostTree(SCANNER_CACHE);
-      return exec(
-        SCANNER,
-        [
-          `-Dsonar.host.url=${URL}`,
-          `-Dsonar.userHome=${SCANNER_CACHE}`,
-          `-Dsonar.projectKey=${projectKey(cwd)}`,
-          '-Dsonar.exclusions=**/node_modules/**,**/.venv/**,**/target/**,**/dist/**,**/coverage/**',
-        ],
-        {
-          cwd,
-          env: {
-            SONAR_TOKEN: process.env.SONAR_TOKEN,
-            HOME: SCANNER_HOME,
-            SONAR_USER_HOME: SCANNER_CACHE,
-            XDG_CACHE_HOME: SCANNER_CACHE,
-            JAVA_TOOL_OPTIONS: `-Duser.home=${SCANNER_HOME}`,
-            PATH: '/usr/bin:/bin',
-            ...(process.platform === 'win32'
-              ? { SystemRoot: process.env.SystemRoot, USERPROFILE: SCANNER_HOME }
-              : {}),
-          },
+      // This is the installed unprivileged controller client, not the scanner itself.
+      // The protected policy/image selects project settings, dependencies and network.
+      return exec(SCANNER, [], {
+        cwd,
+        env: {
+          SONAR_TOKEN: process.env.SONAR_TOKEN,
+          PATH: '/usr/bin:/bin',
         },
-      );
+      });
     }
     case 'down':
       return compose(['down', ...(purge ? ['--volumes'] : [])]);
