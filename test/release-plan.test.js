@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { afterEach, describe, expect, it } from 'vitest';
-import { compare, nextVersion, releasePlan } from '../scripts/release-plan.mjs';
+import { compare, completedRelease, nextVersion, releasePlan } from '../scripts/release-plan.mjs';
 import { makeRepo } from './helpers.js';
 
 let repo;
@@ -26,6 +26,34 @@ describe('release version selection', () => {
     expect(nextVersion('1.9.0', ['feat: add', 'fix!: remove'])).toBe('2.0.0');
     expect(compare('v1.10.0', 'v1.9.9')).toBeGreaterThan(0);
     expect(() => nextVersion('latest', [])).toThrow(/Invalid/);
+  });
+
+  it('skips complete releases but retries incomplete releases and fails on lookup errors', async () => {
+    const plan = { tag: 'v1.2.3', version: '1.2.3' };
+    const names = [
+      'star-config-linux-x64.gz',
+      'star-config-linux-arm64.gz',
+      'star-config-darwin-arm64.gz',
+      'star-config-darwin-x64.gz',
+      'star-config-windows-x64.exe.gz',
+      'susanbeasles-star-config-1.2.3.tgz',
+      'SHA256SUMS',
+      'install.sh',
+    ];
+    const assets = names.map((name) => ({
+      name,
+      digest: `sha256-${'a'.repeat(64)}`.replace('-', ':'),
+    }));
+    const response = (items) => async () => ({
+      ok: true,
+      json: async () => ({ tag_name: plan.tag, assets: items }),
+    });
+    expect(await completedRelease(plan, 'synthetic', response(assets))).toBe(true);
+    expect(await completedRelease(plan, 'synthetic', response(assets.slice(1)))).toBe(false);
+    expect(await completedRelease(plan, 'synthetic', async () => ({ status: 404 }))).toBe(false);
+    await expect(
+      completedRelease(plan, 'synthetic', async () => ({ status: 503 })),
+    ).rejects.toThrow(/503/);
   });
 
   it('only reads commits since an ancestral release and repairs retries', () => {

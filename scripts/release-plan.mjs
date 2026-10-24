@@ -56,13 +56,62 @@ export function releasePlan(cwd = process.cwd()) {
       : nextVersion(current, messages);
   const notes =
     messages.map((message) => `- ${message.split('\n')[0]}`).join('\n') || `Release ${version}`;
-  return { version, tag: `v${version}`, sha, notes };
+  return {
+    version,
+    tag: `v${version}`,
+    sha,
+    notes,
+    unchanged: Boolean(baseTag && !messages.length && compare(baseTag, pkg.version) >= 0),
+  };
+}
+
+export async function completedRelease(plan, token, request = fetch) {
+  const response = await request(
+    `https://api.github.com/repos/susanbeasles/star-config/releases/tags/${plan.tag}`,
+    {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
+      redirect: 'error',
+      signal: AbortSignal.timeout(30_000),
+    },
+  );
+  if (response.status === 404) {
+    return false;
+  }
+  if (!response.ok) {
+    throw new Error(`Cannot inspect release completion: GitHub ${response.status}`);
+  }
+  const release = await response.json();
+  const required = [
+    'star-config-linux-x64.gz',
+    'star-config-linux-arm64.gz',
+    'star-config-darwin-arm64.gz',
+    'star-config-darwin-x64.gz',
+    'star-config-windows-x64.exe.gz',
+    `susanbeasles-star-config-${plan.version}.tgz`,
+    'SHA256SUMS',
+    'install.sh',
+  ];
+  return (
+    !release.draft &&
+    release.tag_name === plan.tag &&
+    required.every((name) =>
+      release.assets?.some(
+        (asset) => asset.name === name && /^sha256:[a-f0-9]{64}$/.test(asset.digest),
+      ),
+    )
+  );
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const plan = releasePlan();
+  const release = !(
+    plan.unchanged &&
+    process.env.GH_TOKEN &&
+    (await completedRelease(plan, process.env.GH_TOKEN))
+  );
   writeFileSync('release-notes.md', `${plan.notes}\n`);
   if (process.env.GITHUB_OUTPUT) {
+    appendFileSync(process.env.GITHUB_OUTPUT, `release=${release}\n`);
     for (const key of ['version', 'tag', 'sha']) {
       appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${plan[key]}\n`);
     }
