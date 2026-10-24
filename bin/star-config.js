@@ -82,7 +82,7 @@ async function main() {
   const ctx = () => loadContext(cwd);
   switch (command) {
     case 'init':
-      await initialize(cwd);
+      await initialize(cwd, { requireDependency: false });
       return 0;
     case 'setup': {
       const prof = values.profile;

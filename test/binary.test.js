@@ -45,6 +45,10 @@ describe.runIf(HAS_BIN)('star-config binary (no node_modules)', () => {
     expect(readFileSync(path.join(repo.root, 'ruff.toml'), 'utf8')).toMatch(/select = \[/);
     expect(existsSync(path.join(repo.root, 'eslint.config.mjs'))).toBe(false);
     expect(readFileSync(path.join(repo.root, 'mise.toml'), 'utf8')).toMatch(/tflint = /);
+    expect(readFileSync(path.join(repo.root, 'AGENTS.md'), 'utf8')).toMatch(/Authority and trust/);
+    expect(readFileSync(path.join(repo.root, '.github/codeql/codeql-config.yml'), 'utf8')).toMatch(
+      /security-extended/,
+    );
   });
 
   it('lints and tests with native tools', () => {

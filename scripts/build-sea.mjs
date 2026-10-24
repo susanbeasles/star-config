@@ -4,10 +4,11 @@
 // CI runs this on a matrix of runners (one per platform) and publishes SHA256SUMS.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
+import { configAssets } from './config-assets.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
@@ -39,8 +40,8 @@ await build({
 
 // 2. SEA config with every shipped config file as an asset.
 const assets = { 'package.json': path.join(root, 'package.json') };
-for (const f of readdirSync(path.join(root, 'configs'))) {
-  assets[`configs/${f}`] = path.join(root, 'configs', f);
+for (const rel of configAssets(root)) {
+  assets[rel] = path.join(root, rel);
 }
 const seaConfig = path.join(dist, 'sea-config.json');
 writeFileSync(

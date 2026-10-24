@@ -31,3 +31,4 @@ export { auditTasks, buildTasks, testTasks } from './tasks.js';
 export { MISE_TOOLS, NPM_DEV, PY_DEV } from './tools.js';
 export { analyzeWrangler, stripJsonc } from './wrangler-nag.js';
 export { initialize } from './initialize.js';
+export { repositoryFiles } from './templates/repository.js';

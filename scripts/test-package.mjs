@@ -25,7 +25,8 @@ try {
       /^(?:bin|src|chunks|configs)\//.test(file) || ['LICENSE', 'package.json'].includes(file),
       file,
     );
-    assert(!/\.map$|\.md$|AGENTS|CLAUDE|templates\/agents/.test(file), file);
+    assert(!/\.map$|README|templates\/agents/.test(file), file);
+    assert(!file.endsWith('.md') || file.startsWith('configs/repository/'), file);
   }
   const manifest = {
     name: 'synthetic-consumer',
@@ -95,11 +96,18 @@ try {
   );
   for (const file of [
     'AGENTS.md',
+    'INSTRUCTIONS.md',
     'CLAUDE.md',
-    '.claude',
-    '.codex',
+    'GEMINI.md',
+    'CODEX.md',
     '.github/copilot-instructions.md',
+    '.github/dependabot.yml',
+    '.github/codeql/codeql-config.yml',
+    '.gitignore',
   ]) {
+    assert(existsSync(path.join(work, file)), file);
+  }
+  for (const file of ['.claude', '.codex']) {
     assert(!existsSync(path.join(work, file)), file);
   }
   process.stdout.write(

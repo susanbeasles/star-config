@@ -33,7 +33,21 @@ describe('automatic tooling initialization', () => {
     expect(testTasks(ctx.stacks, ctx.files, { cwd: ctx.root })[0].id).toBe('node:test');
     expect(buildTasks(ctx.stacks, ctx.files, { cwd: ctx.root })[0].id).toBe('node:esbuild');
     expect(repo.sh('git', ['config', 'core.hooksPath']).stdout.trim()).toBe('');
-    for (const file of ['AGENTS.md', 'CLAUDE.md', '.claude', '.codex', '.github', '.husky']) {
+    for (const file of [
+      'AGENTS.md',
+      'INSTRUCTIONS.md',
+      'CLAUDE.md',
+      'GEMINI.md',
+      'CODEX.md',
+      '.github/copilot-instructions.md',
+      '.github/dependabot.yml',
+      '.github/codeql/codeql-config.yml',
+      '.yamllint.yml',
+    ]) {
+      expect(existsSync(path.join(repo.root, file)), file).toBe(true);
+    }
+
+    for (const file of ['.claude', '.codex', '.husky']) {
       expect(existsSync(path.join(repo.root, file))).toBe(false);
     }
   });
@@ -45,6 +59,15 @@ describe('automatic tooling initialization', () => {
     repo.put('package.json', JSON.stringify({ ...manifest, name: '@susanbeasles/star-config' }));
     expect(await initialize(repo.root)).toBe(false);
     expect(existsSync(path.join(repo.root, '.star'))).toBe(false);
+  });
+
+  it('explicitly initializes non-Node projects without creating a package manifest', async () => {
+    repo = makeRepo();
+    repo.put('pyproject.toml', '[project]\nname = "synthetic"\nversion = "0.1.0"\n');
+    expect(await initialize(repo.root, { requireDependency: false })).toBe(true);
+    expect(existsSync(path.join(repo.root, 'AGENTS.md'))).toBe(true);
+    expect(existsSync(path.join(repo.root, 'ruff.toml'))).toBe(true);
+    expect(existsSync(path.join(repo.root, 'package.json'))).toBe(false);
   });
 
   it('fails before changing files when a managed destination is a symlink', async () => {

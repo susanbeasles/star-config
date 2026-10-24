@@ -82,17 +82,23 @@ describe('plan', () => {
     expect(mise.tools.trivy).toBe(MISE_TOOLS.trivy);
   });
 
-  it('does not generate agent instructions or agent settings', async () => {
+  it('generates a shared repository baseline without agent execution settings', async () => {
     const files = await plan(polyglot());
     for (const name of [
       'AGENTS.md',
+      'INSTRUCTIONS.md',
       'CLAUDE.md',
-      '.claude/settings.json',
-      '.codex/config.toml',
+      'GEMINI.md',
+      'CODEX.md',
       '.github/copilot-instructions.md',
+      '.github/codeql/codeql-config.yml',
+      '.github/dependabot.yml',
+      '.gitignore',
     ]) {
-      expect(files[name]).toBeUndefined();
+      expect(files[name]).toBeDefined();
     }
+    expect(files['.claude/settings.json']).toBeUndefined();
+    expect(files['.codex/config.toml']).toBeUndefined();
     expect(files['.github/CODEOWNERS'].content).toMatch(/^\* @your-org\/platform$/m);
   });
 
@@ -116,7 +122,8 @@ describe('apply (manifest-aware)', () => {
     const ctx = polyglot();
     const files = await plan(ctx);
     const count = Object.keys(files).length;
-    expect(apply(ctx.root, files, { version: '1' }).written).toHaveLength(count);
+    repo.put('.gitignore', files['.gitignore'].content);
+    expect(apply(ctx.root, files, { version: '1' }).written).toHaveLength(count - 1);
     expect(apply(ctx.root, files, { version: '1' }).unchanged).toHaveLength(count);
 
     writeFileSync(path.join(ctx.root, 'AGENTS.md'), '# mine\n');

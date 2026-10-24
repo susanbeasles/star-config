@@ -1,15 +1,8 @@
-import {
-  chmodSync,
-  copyFileSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { chmodSync, copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, transform } from 'esbuild';
+import { configAssets } from './config-assets.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = path.join(root, 'build/package');
@@ -36,15 +29,16 @@ await build({
   sourcemap: false,
   chunkNames: 'chunks/[name]-[hash]',
 });
-for (const file of readdirSync(path.join(root, 'configs'))) {
-  const source = readFileSync(path.join(root, 'configs', file), 'utf8');
+for (const file of configAssets(root)) {
+  const source = readFileSync(path.join(root, file), 'utf8');
   let content = source;
   if (file.endsWith('.mjs')) {
     content = (await transform(source, { loader: 'js', minify: true, legalComments: 'none' })).code;
   } else if (file.endsWith('.json')) {
     content = JSON.stringify(JSON.parse(source));
   }
-  writeFileSync(path.join(out, 'configs', file), content);
+  mkdirSync(path.dirname(path.join(out, file)), { recursive: true });
+  writeFileSync(path.join(out, file), content);
 }
 const { devDependencies: _dev, scripts: _scripts, files: _files, ...manifest } = pkg;
 delete manifest.private;
