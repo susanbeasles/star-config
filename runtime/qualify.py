@@ -54,6 +54,7 @@ def run(args, *, cwd=None, data=None, user=False, **options):
             "Qualification command failed: "
             + args[0]
             + "\n"
+            + result.stdout.decode(errors="replace")[-4000:]
             + result.stderr.decode(errors="replace")[-4000:]
         )
     return result
