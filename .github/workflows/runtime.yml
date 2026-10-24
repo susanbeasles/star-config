@@ -19,15 +19,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - name: Build the immutable checks and scanner image
+      - name: Build the immutable checks image
         run: docker build --file runtime/Dockerfile --iidfile runtime-image.id .
-      - name: Qualify the real controller, Git callbacks, and Sonar analysis
+      - name: Qualify the real controller, Git callbacks, and isolation
         run: |
           test -d /opt
           test ! -L /opt
           sudo chown root:root /opt
           sudo chmod 0755 /opt
-          sudo sysctl -w vm.max_map_count=1048576
           sudo env GITHUB_ACTIONS=true STAR_CONFIG_TEST_HOST_FIXTURE=1 \
             STAR_RUNTIME_IMAGE_ID="$(cat runtime-image.id)" \
             /usr/bin/python3 -I runtime/qualify.py
@@ -39,7 +38,6 @@ jobs:
           cp runtime-image.id runtime-bundle/
           cp runtime/agent_guard.py runtime/client.py runtime/install.py runtime/agent-guard.service runtime-bundle/
           cp runtime/README.md runtime-bundle/
-          cp configs/sonarqube-compose.yml runtime-bundle/
           cd runtime-bundle
           sha256sum -- * > SHA256SUMS
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7

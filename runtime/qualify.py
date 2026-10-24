@@ -2,7 +2,6 @@
 """Destructive qualification ONLY in a fresh GitHub-hosted Linux runner."""
 
 import base64
-import contextlib
 import hashlib
 import json
 import os
@@ -11,20 +10,15 @@ import stat
 import subprocess
 import sys
 import time
-import urllib.parse
-import urllib.request
-import uuid
 from pathlib import Path
 
 ROOT = Path("/opt/agent-guard")
-SONAR = Path("/opt/star-config/sonar")
 STAGE = Path("/opt/star-config-runtime-install")
 FIXTURE = Path("/srv/agent-guard-qualification")
 SERVICE = Path("/etc/systemd/system/agent-guard.service")
 PROPOSAL_STATUS = 3
 POST_EDIT_STATUS = 2
 UID = 20001
-KEY = "star-config-runtime-qualification"
 SOURCE = Path(__file__).absolute().parent.parent
 ENV = {
     "PATH": "/usr/bin:/bin",
@@ -58,24 +52,6 @@ def run(args, *, cwd=None, data=None, user=False, **options):
     return result
 
 
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, *_args, **_kwargs):
-        raise ValueError("Local qualification API redirects are refused")
-
-
-def api(path, password, *, data=None):
-    credentials = base64.b64encode(("admin:" + password).encode()).decode()
-    request = urllib.request.Request(
-        "http://127.0.0.1:9000" + path,
-        data=urllib.parse.urlencode(data).encode() if data is not None else None,
-        headers={"Authorization": "Basic " + credentials},
-    )
-    opener = urllib.request.build_opener(NoRedirect)
-    with opener.open(request, timeout=20) as response:
-        body = response.read()
-        return json.loads(body) if body else {}
-
-
 def write(file, content, executable=False):
     file.parent.mkdir(parents=True, exist_ok=True)
     file.write_text(content)
@@ -87,16 +63,9 @@ def write(file, content, executable=False):
         current = current.parent
 
 
-def callback(project, phase, *, text="", success=True, token=None):
-    env = dict(ENV)
-    if token:
-        env["SONAR_TOKEN"] = token
-    command = (
-        [str(SONAR / "bin/sonar-scanner")]
-        if phase == "sonar"
-        else [str(ROOT / "bin/agent-guard"), "check", phase]
-    )
-    return run(command, cwd=project, data=text.encode(), user=True, env=env, success=success)
+def callback(project, phase, *, text="", success=True):
+    command = [str(ROOT / "bin/agent-guard"), "check", phase]
+    return run(command, cwd=project, data=text.encode(), user=True, success=success)
 
 
 class QualificationState:
@@ -104,22 +73,9 @@ class QualificationState:
         self.image = image
         self.project = FIXTURE / "checkout"
         self.remote = FIXTURE / "remote.git"
-        self.compose_env = dict(ENV, STAR_SONAR_DB_PASSWORD=uuid.uuid4().hex)
-        self.compose = [
-            "/usr/bin/docker",
-            "compose",
-            "-p",
-            "star-runtime-qualification",
-            "-f",
-            str(SOURCE / "configs/sonarqube-compose.yml"),
-        ]
         self.process = None
         self.created_user = False
         self.owned = False
-        self.compose_started = False
-        self.password = uuid.uuid4().hex
-        self.token_name = "qualification-" + uuid.uuid4().hex
-        self.changed_password = False
 
 
 def require(condition, message):
@@ -180,22 +136,6 @@ def prepare_fixture(state):
 
 
 def install_controller(state):
-    # These resources are exclusive to this opt-in qualification job.
-    state.compose_started = True
-    run([*state.compose, "up", "-d", "--wait", "--wait-timeout", "600"], env=state.compose_env)
-    network = (
-        run(
-            [
-                "/usr/bin/docker",
-                "network",
-                "inspect",
-                "--format={{.Id}}",
-                "star-runtime-qualification_analysis",
-            ]
-        )
-        .stdout.decode()
-        .strip()
-    )
     STAGE.mkdir(mode=0o700)
     for name in (
         "agent_guard.py",
@@ -220,10 +160,6 @@ def install_controller(state):
             str(UID),
             "--image",
             state.image,
-            "--sonar-network",
-            network,
-            "--sonar-key",
-            KEY,
             "--no-service",
         ]
     )
@@ -370,61 +306,7 @@ s.on("timeout",()=>process.exit(0));
     )
 
 
-def qualify_sonar(state):
-    # A real local server and project-scoped token, not a mocked scanner process.
-    api(
-        "/api/users/change_password",
-        "admin",
-        data={"login": "admin", "previousPassword": "admin", "password": state.password},
-    )
-    state.changed_password = True
-    api(
-        "/api/projects/create",
-        state.password,
-        data={"project": KEY, "name": "Synthetic qualification"},
-    )
-    token = api(
-        "/api/user_tokens/generate",
-        state.password,
-        data={
-            "name": state.token_name,
-            "type": "PROJECT_ANALYSIS_TOKEN",
-            "projectKey": KEY,
-        },
-    )["token"]
-    write(state.project / "probe.js", "export const add = (a, b) => a + b;\n")
-    write(
-        state.project / "sonar-project.properties",
-        "sonar.host.url=https://attacker.invalid\nsonar.projectKey=unapproved\nsonar.nodejs.executable=/untrusted\n",
-    )
-    result = callback(state.project, "sonar", token=token, success=False)
-    output = result.stdout.replace(token.encode(), b"[REDACTED]")
-    if result.returncode:
-        raise AssertionError(
-            "Real scanner qualification failed:\n" + output.decode(errors="replace")[-6000:]
-        )
-    require(
-        token.encode() not in result.stdout and b"ANALYSIS SUCCESSFUL" in result.stdout,
-        "Qualification invariant failed",
-    )
-    for _ in range(60):
-        if api("/api/project_analyses/search?project=" + KEY, state.password).get("analyses"):
-            break
-        time.sleep(2)
-    else:
-        raise AssertionError("Server did not complete the submitted analysis")
-    require(
-        not run(
-            ["/usr/bin/docker", "ps", "-aq", "--filter", "label=io.star-config.agent-guard=true"]
-        ).stdout.strip(),
-        "Qualification invariant failed",
-    )
-
-
 def cleanup(state):
-    if state.changed_password:
-        with contextlib.suppress(OSError, ValueError):
-            api("/api/user_tokens/revoke", state.password, data={"name": state.token_name})
     if state.process is not None:
         state.process.terminate()
         try:
@@ -434,14 +316,7 @@ def cleanup(state):
             state.process.wait(timeout=10)
     if state.owned:
         shutil.rmtree(ROOT, ignore_errors=True)
-        shutil.rmtree(SONAR, ignore_errors=True)
         SERVICE.unlink(missing_ok=True)
-    if state.compose_started:
-        run(
-            [*state.compose, "down", "--volumes", "--remove-orphans"],
-            env=state.compose_env,
-            success=False,
-        )
     shutil.rmtree(STAGE, ignore_errors=True)
     shutil.rmtree(FIXTURE, ignore_errors=True)
     if state.created_user:
@@ -455,7 +330,7 @@ def main():
         or os.environ.get("STAR_CONFIG_TEST_HOST_FIXTURE") != "1"
     ):
         raise RuntimeError("Qualification requires explicit opt-in on a fresh GitHub runner")
-    for path in (ROOT, SONAR, STAGE, FIXTURE, SERVICE):
+    for path in (ROOT, STAGE, FIXTURE, SERVICE):
         if path.exists() or path.is_symlink():
             raise RuntimeError("Qualification refuses existing installations and fixtures")
     state = QualificationState(os.environ["STAR_RUNTIME_IMAGE_ID"])
@@ -464,7 +339,6 @@ def main():
         install_controller(state)
         qualify_git(state)
         qualify_boundary(state)
-        qualify_sonar(state)
         sys.stdout.write(
             json.dumps(
                 {
@@ -473,7 +347,6 @@ def main():
                     "caller_authorization": "passed",
                     "proposal_isolation": "passed",
                     "post_edit_exit_status": "passed",
-                    "real_sonar_analysis": "passed",
                 }
             )
             + "\n"

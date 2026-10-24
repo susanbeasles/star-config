@@ -1,253 +1,112 @@
 # star-config
 
-One command gives any repo lint, format, tests, build, security scanning, git hooks, agent
-instructions and a dev container. It detects every stack in the repo, so each team stops
-maintaining its own copy of the same tooling.
+Shared formatting, lint, test, build, and audit tooling for JavaScript/TypeScript,
+Python, Rust, Swift, Shell, Docker, YAML, Terraform, and Cloudflare projects.
 
-```sh
-curl -fsSL https://install.susanb.dev | sh   # any repo, no Node needed
-npm i -D star-config                         # or, in Node repos
-star-config setup --owners @your-org/platform
-```
+The public package name is `@susanbeasles/star-config`. It is not yet registered
+on npm; installation from the public registry is blocked until the initial
+registration and trusted publisher configuration are complete.
 
-## What it sets up
+## Project setup
 
-| Stack                 | Format          | Lint                                               | Test                      | Build                        | Security                                           |
-| --------------------- | --------------- | -------------------------------------------------- | ------------------------- | ---------------------------- | -------------------------------------------------- |
-| JS / TS               | Prettier        | ESLint 10 + typescript-eslint + sonarjs (or Biome) | Vitest · Playwright (web) | esbuild / `npm run build`    | npm audit · cdk-nag (AWS CDK)                      |
-| Python                | Ruff            | Ruff (bandit rules)                                | pytest in `.venv`         | `uv build`                   | pip-audit                                          |
-| Rust                  | rustfmt         | Clippy `-D warnings`                               | `cargo test`              | `cargo build --release`      | cargo-deny                                         |
-| Swift                 | swift-format    | SwiftLint (strict)                                 | `swift test`              | `swift build`                | —                                                  |
-| Shell                 | shfmt           | ShellCheck                                         | bats                      | —                            | —                                                  |
-| YAML / GitHub Actions | Prettier        | yamllint · actionlint                              | —                         | —                            | —                                                  |
-| Docker                | —               | hadolint                                           | —                         | `docker buildx` (`--docker`) | Trivy                                              |
-| Terraform             | `terraform fmt` | tflint                                             | —                         | —                            | Checkov · Trivy                                    |
-| Cloudflare Workers    | —               | —                                                  | —                         | —                            | wrangler-nag (built in)                            |
-| **Every repo**        |                 |                                                    |                           |                              | **Gitleaks · Trivy · Semgrep · SonarQube (local)** |
+Install with `yarn add --dev @susanbeasles/star-config` or the equivalent npm,
+pnpm, or Bun command once the package is published. The lifecycle initializer
+preserves existing configurations and scripts and only acts on a project that
+already declares this package as a direct dependency.
 
-`setup` also writes these, each only if the repo needs it and doesn't already have it:
+npm saves a newly added dependency after its lifecycle scripts run. For that
+first addition, run `star-config init` through your package manager after
+installation. Scripts-disabled installs also require explicit initialization.
+The Yarn first-add path has not been qualified. Unattended first-add setup across
+all package managers is **not currently guaranteed**.
 
-- **Governance:** `SECURITY.md`, `.github/CODEOWNERS`, PR template, `.github/dependabot.yml`
-  (every detected ecosystem, 7-day cooldown).
-- **AI agents:** `AGENTS.md` is the single source; `CLAUDE.md` imports it. Also
-  `.github/copilot-instructions.md`, `.claude/settings.json` (denies reading secrets, and a hook
-  that formats and lints every file the agent edits) and `.codex/config.toml` (sandboxed, no
-  network). Codex reads `AGENTS.md` directly, so there's no `CODEX.md`.
-- **Dev environment:** `.devcontainer/` for Codespaces, `.vscode/` (format-on-save with the
-  right formatter for each language), `mise.toml` (pinned native tools) and `.editorconfig`.
-- **CI:** `.github/workflows/star-config.yml`, which runs `star-config check`.
-- **Hooks:** `pre-commit` runs Gitleaks on the staged diff, then lint-staged to format and lint
-  staged files. `pre-push` runs lint and unit tests. Hooks dispatch through the reviewed host-managed runner
-  registered at the fixed `core.hooksPath`; setup refuses missing or unsafe host installations.
+`init` adds tooling configuration and missing package scripts. It does not run
+project commands, install native toolchains, provision a host runner, modify Git
+hook policy, or install agent execution hooks. Existing host security boundaries
+remain enforced by `setup` and `hooks`. Managed writes currently require Linux;
+macOS and Windows initialization remain unsupported. Automatic postinstall setup
+is skipped on those platforms so dependency installation can succeed.
 
 ## Commands
 
-```text
-setup     detect → write files → install deps (.venv, npm, mise tools) → hooks
-sync      re-render managed files after upgrading star-config (keeps files you edited)
-doctor    detected stacks, installed/missing tools, pin drift
-lint      all linters + format checks (read-only; --fix writes)
-format    formatters only
-test      every detected test suite (--e2e for Playwright, --coverage)
-build     every detected build (--docker for images)
-audit     secrets, dependency CVEs, SAST, IaC
-check     lint + test + audit — what CI runs
-sonar     up | scan | status | down — local SonarQube in Docker
-```
+- `star-config lint` / `lint --fix`
+- `star-config format`
+- `star-config test` / `test --coverage` / `test --e2e`
+- `star-config build`
+- `star-config audit`
+- `star-config check` (lint, tests, build, audit)
+- `star-config doctor`
+- `star-config sync`
 
-Tools that are missing print a warning with an install hint and are skipped on a laptop. When
-`CI=true` (or `STAR_CONFIG_STRICT=1`), a missing tool fails the run.
+Node tooling ships as dependencies. Native toolchains are pinned in generated
+`mise.toml`; installing them remains a separate, explicit provisioning operation.
+Missing tools fail in CI or with `STAR_CONFIG_STRICT=1` and warn locally.
+The shared Vitest coverage configuration enforces 100% thresholds; existing
+project configurations are preserved. This repository's measured coverage is
+lower, and some host/tool-dependent qualification tests are conditional.
 
-## How it stays current ("rolling", but reviewed)
+## Releases
 
-1. Every version star-config uses is pinned in [`src/tools.js`](src/tools.js) and `package.json`.
-2. In this repo, Renovate bumps the native-tool pins and Dependabot bumps npm packages and
-   Actions, both after a 7-day cooldown. CI must pass before merge. Tagging a release builds the
-   binaries.
-3. In consumer repos, Dependabot bumps `star-config`. Then `star-config sync` rewrites
-   `mise.toml`, configs and agent files, and `sync --check` in CI flags drift. Files you edited
-   are never overwritten. They're tracked by hash in `.star/manifest.json`.
+`.github/workflows/release.yml` verifies the exact source commit, derives its
+version from conventional commit messages, and builds minified npm artifacts
+plus standalone executables. Breaking changes bump major, `feat` bumps minor,
+and other changes bump patch. Source versions are stamped into artifacts without
+adding release commits to `main`. Existing version tags establish subsequent
+release versions.
 
-Nothing installs "latest" at runtime. Every machine and CI run uses the same reviewed versions.
+Publishing uses GitHub Actions OIDC and npm provenance, without an npm token or
+manual approval environment. npm must trust owner `susanbeasles`, repository
+`star-config`, workflow `release.yml`, with no environment binding. Initial
+registration requires authenticated npm account access. The workflow publishes
+npm before creating the GitHub Release and checks artifact integrity on retries.
+Existing release assets are never overwritten with different bytes.
 
-## Install and supply-chain controls
+Dependency updates retain their existing conservative merge policy. Protected
+branches currently require manual integration; this change does not bypass
+repository rules or provision external account permissions.
 
-- `install.sh` downloads the binary for your OS/arch from GitHub Releases and verifies its
-  SHA-256 against `SHA256SUMS`. If the GitHub CLI is logged in, it also verifies the
-  build-provenance attestation. Any mismatch stops the install. `STAR_CONFIG_BASE_URL` points it
-  at an internal mirror; only https is accepted.
-- npm releases are published with `--provenance`.
-- `mise.lock` records URLs and checksums for each platform's native tools.
-- Release and CI workflows say "pin to SHA". Do that before enabling them. Mutable action tags
-  were the attack vector in the 2026 trivy-action compromise (CVE-2026-33634), and star-config
-  will never pin trivy 0.69.4.
-- Semgrep runs with telemetry and version checks off. Checkov runs with `--skip-download`.
-  SonarQube binds to `127.0.0.1` only, and its DB password lives in `~/.config/star-config`
-  with mode 0600.
+## Package validation
 
-## Configuration
+`npm run build` writes a staging package to `build/package`. `npm run test:package`
+installs its tarball in a synthetic project and checks initialization, preserved
+edits, package exports, test execution, build execution, and size/content budgets.
+Only minified modules, runtime configs, package metadata, and the license ship.
+Root README files, tests, source maps, and build scripts do not ship. The requested
+repository instruction templates ship as explicit baseline assets.
+Tool dependencies contribute additional installation size beyond the small
+star-config tarball.
 
-`.star/config.json` (committed):
+The standalone installer defaults to `/usr/local/bin` and checks write access
+before downloading. For a privileged install, save and review `install.sh`, then
+run `sudo sh install.sh`. It never elevates automatically.
 
-```json
-{
-  "owners": ["@your-org/platform"],
-  "securityContact": "security@example.com",
-  "jsProfile": "eslint",
-  "skip": [".github/workflows/star-config.yml"]
-}
-```
+## Shared repository baseline
 
-Linter configs extend the shipped presets, so local overrides go in the repo file:
+`init` and `sync` install the account-wide baseline: `AGENTS.md`, `INSTRUCTIONS.md`,
+`CLAUDE.md`, `GEMINI.md`, `CODEX.md`, `.github/copilot-instructions.md`,
+`.github/dependabot.yml`, `.github/codeql/codeql-config.yml`, and `.gitignore`.
+Canonical static files live under `configs/repository/`; Dependabot uses the
+shared policy with detected dependency ecosystems. All agent adapters point to
+root `AGENTS.md`; they do not define separate policies or install execution hooks.
 
-```js
-// eslint.config.mjs
-import { starConfig } from 'star-config/eslint';
-export default [...starConfig({ typeChecked: true }), { rules: { 'sonarjs/todo-tag': 'off' } }];
-```
+Missing files are created; unchanged managed files receive template updates.
+Locally edited or previously unmanaged files are preserved and reported, so a
+shared update cannot silently replace project-specific instructions or ignore
+rules. `sync` reports preserved conflicts; `sync --check` also exits nonzero when
+managed files need to be written or updated.
+Use `sync --force` only when intentionally replacing local files. Explicit
+`star-config init` also works in non-Node repositories without creating a
+`package.json`; install-time hooks remain limited to declared direct consumers.
 
-### AWS CDK (cdk-nag)
+The CodeQL configuration adds `security-extended` while retaining default
+queries. A configuration file alone does not enable code scanning: an existing
+CodeQL workflow must use its `config-file` input, or supported GitHub default
+setup must reference it through the repository property. No GitHub account
+settings or other repositories are changed by installing this package here.
 
-`setup` installs `cdk-nag`. Add it to your app entry once:
+## Protected runtime
 
-```ts
-import { Aspects } from 'aws-cdk-lib';
-import { AwsSolutionsChecks, HIPAASecurityChecks } from 'cdk-nag';
-Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
-Aspects.of(app).add(new HIPAASecurityChecks({ verbose: true }));
-```
-
-### Terraform
-
-`terraform fmt` and tflint run on lint. Checkov and Trivy run on audit. Open-source Checkov has
-no HIPAA filter. For HIPAA-mapped infrastructure checks, define infrastructure in CDK
-(cdk-nag `HIPAASecurityChecks`) or map Checkov IDs in your SSP.
-
-### Cloudflare Workers (wrangler-nag)
-
-There's no upstream cdk-nag equivalent, so star-config ships one:
-
-| Rule  | Level | Check                                                                   |
-| ----- | ----- | ----------------------------------------------------------------------- |
-| WR001 | error | `compatibility_date` missing                                            |
-| WR002 | error | secret-looking value in `vars` (use `wrangler secret put`)              |
-| WR003 | error | routes configured but `workers_dev` isn't `false` (bypasses WAF/Access) |
-| WR004 | warn  | `observability.enabled` isn't `true`                                    |
-| WR005 | warn  | `preview_urls` isn't `false` on a routed Worker                         |
-| WR007 | warn  | deprecated `node_compat`                                                |
-| WR008 | warn  | `compatibility_date` older than a year                                  |
-
-Every rule runs on the top level and on each `env.*` block.
-
-### SonarQube
-
-SonarLint only runs inside the editor. For the same rules from the CLI, run a local server:
-
-```sh
-star-config sonar up          # SonarQube Community + Postgres on 127.0.0.1:9000
-export SONAR_TOKEN=…          # from My Account → Security (never committed)
-star-config sonar scan
-```
-
-Scanning requires the reviewed controller client at
-`/opt/star-config/sonar/bin/sonar-scanner`. Install the qualified
-[runtime bundle](runtime/README.md) separately. The controller selects the registered
-project key, immutable scanner image and isolated Sonar network; checkout scanner
-properties and npm configuration do not control acquisition or execution. Each scan
-uses a fresh private home/cache inside the container. Missing or unsafe installations
-fail without downloading a replacement. The CLI never launches the scanner on the host.
-
-Point the IDE extension at `http://127.0.0.1:9000` (Connected Mode) to get the same rules while
-you type.
-
-## Known limits
-
-- **TypeScript is pinned to 6.0.x for linting.** typescript-eslint and sonarjs don't support
-  TS 7 yet.
-- **React Native:** Vitest covers logic and hooks only. Mobile end-to-end tests need Maestro or
-  Detox.
-- **Swift:** Xcode-project builds and tests (`xcodebuild`) aren't automated yet; only SwiftPM is.
-- **Gaps in automated testing:** the pinned versions of Gitleaks, Trivy, SwiftLint,
-  swift-format, tflint and terraform were never run by the automated tests. Run
-  `star-config doctor` on a real machine to confirm them.
-
-## Develop
-
-Requires Node 24 (`.nvmrc`). The release binaries are built with Node 24 too.
-
-```sh
-npm test                 # unit + e2e against real tools (missing tools are skipped)
-npm run typecheck
-node bin/star-config.js check
-npm run build:sea        # single-file binary for this platform → dist/
-```
-
-### Host-managed automatic checks
-
-The separately installed controller, scanner image, commissioning workflow and
-deployment bundle are in [`runtime/README.md`](runtime/README.md).
-
-Automatic Git and Claude callbacks dispatch only
-`/opt/agent-guard/bin/agent-guard check <phase>`. There is no PATH or environment
-override and no checkout fallback. Missing runner/runtime/tools must fail the
-check. `.husky` files are migration templates, not a trusted Git hooks directory.
-
-A host administrator must separately install the reviewed runner and
-`/opt/agent-guard/git-hooks/{pre-commit,pre-push}` outside worker write access.
-`star-config hooks` checks root ownership, executable permissions, parent
-permissions and absence of symlinks before setting the local Git hooks path.
-It does not install the host runtime. Protect all runner dependencies, policy,
-Git configuration and agent client configuration from the worker as well;
-mode bits alone do not protect against a worker running as root. Agent clients
-must install these callbacks in host-managed configuration and mediate all
-checkout execution through the isolated service, disable project hook auto-loading,
-and fail preflight for unsupported clients. Tracked settings alone are
-not an enforcement boundary.
-
-Existing custom `core.hooksPath`, default Git hooks and Husky `prepare` scripts
-are preserved and cause an actionable setup failure. Have the administrator
-review and migrate every custom check into the trusted policy, explicitly
-remove the old hook setting/installer, then rerun `star-config hooks`.
-New projects no longer receive `prepare=husky`; this repository's old installer
-has been removed. Running sync alone does not migrate an existing installation.
-CI/devcontainers also need a separately provisioned trusted runtime before setup
-can succeed; do not bypass the failed hook setup.
-
-The administrator's reviewed check declaration must retain these workloads,
-executed only in the isolated snapshot with `CI=true` and
-`STAR_CONFIG_STRICT=1` (missing tools fail):
-
-| Phase        | Required workload inside the isolated runtime                                                                                                                       |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pre-commit` | `.star/run pre-commit`: `gitleaks git --pre-commit --staged --redact --verbose --no-banner`, then lint-staged and all configured per-language formatting/lint steps |
-| `pre-push`   | `.star/run pre-push`: all configured lint/format checks and unit tests                                                                                              |
-| `post-edit`  | `.star/run agent-hook`: validated event stdin, formatting and lint for the changed file                                                                             |
-
-Pre-commit needs controller-created sanitized Git/index metadata, never real
-host `.git` configuration, hooks, credentials or objects. Formatting changes and
-staging requests are returned as proposals for separate operator review, baseline
-conflict checks, application and staging; the runner never writes the live checkout. Forward
-hook stdin and Git hook arguments (including the pre-push remote name and location),
-and preserve failures (including post-edit exit 2); never accept
-checkout-provided runtime/image/path choices. No Stop hook was previously
-configured. Actual isolation, staged-file behavior and client enforcement require
-integration tests against the host runner; template tests alone do not prove them.
-
-CI separately qualifies real Git commit/push dispatch with a fixture installed at
-the fixed host paths in its ephemeral Linux runner. It verifies hook registration,
-remote arguments, stdin, rejected commits/pushes, missing-runner failure, and
-post-edit exit status. The fixture refuses any existing host installation and
-accepts only its synthetic checkout. This proves the callback transport, not the
-external runtime's isolation, scanner installation, or agent-client enforcement.
-
-Managed setup/sync reads and writes currently require Linux's descriptor-relative
-filesystem support and refuse other hosts. They reject links and anchor operations
-to opened directories, including when a parent pathname is replaced with a link.
-Run them in an exclusively controlled checkout or the isolated runtime: a separate
-host process that can move the opened directory itself outside the checkout is
-outside this containment guarantee. No automatic host configuration is performed.
-
-Generated hosted CI installs declared dependencies and Python test prerequisites
-directly, then runs the full strict checks. It does not run developer hook setup
-or require `/opt/agent-guard` on ephemeral GitHub-hosted runners. Local setup and
-automatic developer hooks still require the separately installed host boundary.
+The protected controller and isolated checks image are
+qualified by `.github/workflows/runtime.yml`. Review [runtime/README.md](runtime/README.md)
+for explicit administrator provisioning and the host isolation requirements.
+The npm tooling package does not provision a privileged host runtime.

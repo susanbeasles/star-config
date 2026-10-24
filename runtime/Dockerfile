@@ -28,9 +28,5 @@ RUN set -eu; \
 COPY bin ./bin
 COPY src ./src
 COPY configs ./configs
-COPY runtime/install_scanner.py /opt/agent-guard/install_scanner.py
-COPY runtime/scan.properties /opt/agent-guard/scan.properties
-RUN python3 -I /opt/agent-guard/install_scanner.py --arch "$TARGETARCH" --destination /opt/scanner \
-    && /opt/scanner/bin/sonar-scanner --version
 USER 65532:65532
 WORKDIR /work

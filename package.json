@@ -1,7 +1,7 @@
 {
-  "name": "star-config",
+  "name": "@susanbeasles/star-config",
   "version": "0.2.0",
-  "description": "One install for every stack: lint, format, test, build, security audit, git hooks, agent files and dev environment — auto-detected for Node/TS, Python, Rust, Swift, Shell, Docker, YAML, AWS CDK and Cloudflare.",
+  "description": "Shared formatting, lint, test, build and audit tooling with automatic project initialization.",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -17,22 +17,13 @@
     "./biome": "./configs/biome.json",
     "./lint-staged": "./src/lint-staged.js",
     "./configs/*": "./configs/*",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./vitest": "./configs/vitest.config.mjs"
   },
   "files": [
     "bin",
     "src",
     "configs",
-    "runtime/agent_guard.py",
-    "runtime/client.py",
-    "runtime/install.py",
-    "runtime/install_scanner.py",
-    "runtime/agent-guard.service",
-    "runtime/Dockerfile",
-    "runtime/scan.properties",
-    "runtime/README.md",
-    "install.sh",
-    "README.md",
     "LICENSE"
   ],
   "scripts": {
@@ -45,7 +36,12 @@
     "audit": "node bin/star-config.js audit",
     "check": "node bin/star-config.js check",
     "build:sea": "node scripts/build-sea.mjs",
-    "prepublishOnly": "npm run typecheck && npm test"
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "build": "node scripts/build-package.mjs",
+    "postinstall": "node bin/postinstall.js",
+    "prepack": "npm run build",
+    "test:package": "node scripts/test-package.mjs",
+    "release:plan": "node scripts/release-plan.mjs"
   },
   "dependencies": {
     "@biomejs/biome": "2.5.15",
@@ -58,20 +54,19 @@
     "eslint-plugin-react-hooks": "7.1.1",
     "eslint-plugin-sonarjs": "4.2.2",
     "globals": "17.13.0",
-    "husky": "9.1.7",
     "lint-staged": "17.6.0",
     "prettier": "3.9.10",
     "smol-toml": "1.9.1",
     "typescript-eslint": "8.71.2",
-    "yaml": "2.9.1"
+    "yaml": "2.9.1",
+    "vitest": "5.0.4",
+    "@vitest/coverage-v8": "5.0.4",
+    "typescript": "6.0.3",
+    "esbuild": "0.28.2"
   },
   "devDependencies": {
     "@types/node": "26.6.5",
-    "@vitest/coverage-v8": "5.0.4",
-    "esbuild": "0.28.2",
-    "postject": "1.0.0-alpha.6",
-    "typescript": "6.0.3",
-    "vitest": "5.0.4"
+    "postject": "1.0.0-alpha.6"
   },
   "publishConfig": {
     "access": "public",
@@ -90,16 +85,15 @@
     "gitleaks",
     "trivy",
     "semgrep",
-    "sonarqube",
     "cdk-nag",
     "husky",
     "lint-staged",
     "devcontainer",
-    "mise",
-    "agents-md"
+    "mise"
   ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/susanbeasles/star-config.git"
-  }
+  },
+  "private": true
 }

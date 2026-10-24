@@ -56,7 +56,7 @@ def protected(path, directory=False):
 def command(args, *, data=None, timeout=30, env=None):
     if args[: len(docker())] != docker():
         raise ValueError("Only the fixed protected Docker client is permitted")
-    # Fixed executable/prefix; callers validate image/network IDs and pass operands without a shell.
+    # Fixed executable/prefix; callers validate image IDs and pass operands without a shell.
     return subprocess.run(  # noqa: S603 - fixed protected executable, validated argv operands
         args,
         input=data,
@@ -76,16 +76,6 @@ def docker(*args):
         str(ROOT / "docker"),
         *args,
     ]
-
-
-def validate_network(info):
-    if (
-        not info.get("Internal")
-        or info.get("Driver") != "bridge"
-        or info.get("EnableIPv6")
-        or info.get("Options", {}).get("com.docker.network.bridge.gateway_mode_ipv4") != "isolated"
-    ):
-        raise ValueError("Scanner requires an isolated internal bridge without a host gateway")
 
 
 def validate_engine():
@@ -199,7 +189,7 @@ def own_snapshot(root):
     # The containing job directory stays root-only; the sandbox sees only /work.
     for directory, _directories, files in os.walk(root, followlinks=False):
         os.chown(directory, 65532, 65532, follow_symlinks=False)
-        os.chmod(directory, 0o755)  # noqa: S103 - private job parent denies host access; sandbox UID needs traversal
+        os.chmod(directory, 0o700)
         for name in files:
             os.chown(Path(directory) / name, 65532, 65532, follow_symlinks=False)
 
@@ -224,13 +214,10 @@ class RunSpec:
     image: str
     work: Path
     name: str
-    network: str
-    project_key: str
 
 
 def runtime_args(spec, phase, args):
     image, work, name = spec.image, spec.work, spec.name
-    network, project_key = spec.network, spec.project_key
     result = docker(
         "run",
         "--pull=never",
@@ -251,7 +238,7 @@ def runtime_args(spec, phase, args):
         "--ulimit",
         "fsize=52428800:52428800",
         "--network",
-        network,
+        "none",
         "--ipc=none",
         "--cgroupns=private",
         "--init",
@@ -266,21 +253,7 @@ def runtime_args(spec, phase, args):
         "--env=GIT_CONFIG_NOSYSTEM=1",
         "--env=GIT_CONFIG_GLOBAL=/dev/null",
     )
-    if phase == "sonar":
-        result.append("--dns=127.0.0.1")
     result.extend(["--entrypoint=/bin/sh", image])
-    if phase == "sonar":
-        script = (
-            "set -eu; mkdir -p /tmp/home; IFS= read -r SONAR_TOKEN; export SONAR_TOKEN; "
-            "exec /opt/scanner/bin/sonar-scanner "
-            "-Dproject.settings=/opt/agent-guard/scan.properties "
-            "-Dsonar.host.url=http://sonarqube:9000 "
-            "-Dsonar.userHome=/tmp/home/cache "
-            "-Dsonar.scanner.skipJreProvisioning=true "
-            "-Dsonar.nodejs.executable=/usr/local/bin/node "
-            '"-Dsonar.projectKey=$1"'
-        )
-        return [*result, "-c", script, "agent-guard", project_key]
     workload = "agent-hook" if phase == "post-edit" else phase
     script = (
         "set -eu; mkdir -p /tmp/home; "
@@ -400,19 +373,17 @@ def validate_project(project):
         raise ValueError("A standalone worker-owned Git directory is required")
     if supplied == "/home" or supplied.startswith(("/home/", "/root/", "/run/user/")):
         raise ValueError("Registered workspaces must be outside protected home directories")
-    if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", project.get("sonar_key", "")):
-        raise ValueError("Invalid registered Sonar project key")
 
 
 def request_inputs(request):
     if not isinstance(request, dict):
         raise TypeError("Expected an object request")
-    if request.keys() - {"cwd", "phase", "args", "stdin", "token"}:
+    if request.keys() - {"cwd", "phase", "args", "stdin"}:
         raise ValueError("Request cannot override host execution policy")
     if not isinstance(request.get("stdin", ""), str):
         raise TypeError("Hook stdin must be text")
     phase = request.get("phase")
-    if phase not in PHASES | {"sonar"}:
+    if phase not in PHASES:
         raise ValueError("Unsupported check phase")
     args = request.get("args", [])
     if not isinstance(args, list) or any(
@@ -428,12 +399,7 @@ def request_inputs(request):
         and re.match(r"https?://[^/]*@", args[1])
     ):
         raise ValueError("Token-bearing remote URLs are not accepted")
-    token = request.get("token", "")
-    if not isinstance(token, str) or (token and not re.fullmatch(r"[A-Za-z0-9_-]{1,4096}", token)):
-        raise ValueError("Invalid scanner token")
-    if phase == "sonar" and not token:
-        raise ValueError("Scanner token is required")
-    return phase, args, token
+    return phase, args
 
 
 def handle(request, uid, policy):
@@ -445,14 +411,7 @@ def handle(request, uid, policy):
     if project is None:
         raise ValueError("Caller or checkout is not registered")
     validate_project(project)
-    phase, args, token = request_inputs(request)
-    network = "none"
-    if phase == "sonar":
-        network = policy.get("sonar_network", "")
-        if not re.fullmatch(r"[0-9a-f]{64}", network):
-            raise ValueError("Protected scanner network is not configured")
-        info = json.loads(command(docker("network", "inspect", network)))[0]
-        validate_network(info)
+    phase, args = request_inputs(request)
     # No runtime pull, dependency acquisition or checkout-selected image is permitted.
     image = (
         command(docker("image", "inspect", "--format={{.Id}}", project["image"])).decode().strip()
@@ -470,18 +429,14 @@ def handle(request, uid, policy):
         data = request.get("stdin", "").encode()
         if phase == "post-edit":
             data = sanitize_event(request.get("stdin", ""), project["path"])
-        elif phase == "sonar":
-            data = (token + "\n").encode()
         output = state / "output"
         status = run_container(
-            runtime_args(RunSpec(image, work, name, network, project["sonar_key"]), phase, args),
+            runtime_args(RunSpec(image, work, name), phase, args),
             data,
             name,
             output,
         )
         text = output.read_bytes()[:MAX_OUTPUT].decode(errors="replace")
-        if token:
-            text = text.replace(token, "[REDACTED]")
         live = state / "live"
         live.mkdir(mode=0o700)
         git_after = {}
@@ -494,7 +449,7 @@ def handle(request, uid, policy):
                     "rerun against the current baseline.\n"
                 ),
             }
-        if phase != "sonar" and proposal(work, baseline, state, name):
+        if proposal(work, baseline, state, name):
             return {
                 "status": status or 3,
                 "output": text,
@@ -557,7 +512,7 @@ def respond(connection, policy):
         json.dumps(
             {
                 "event": "agent-guard.check",
-                "phase": phase if phase in PHASES | {"sonar"} else "invalid",
+                "phase": phase if phase in PHASES else "invalid",
                 "status": response["status"],
                 "duration_ms": int((time.monotonic() - started) * 1000),
             }
@@ -591,6 +546,8 @@ def serve():
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
         server.bind(str(SOCKET))
         os.chown(SOCKET, 0, policy["socket_gid"])
+        # IPC needs group write for the registered worker; peer UID is checked separately.
+        # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions  # noqa: ERA001
         os.chmod(SOCKET, 0o660)
         server.listen(8)
         try:

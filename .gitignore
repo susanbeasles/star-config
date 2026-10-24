@@ -3,9 +3,12 @@ coverage/
 dist/
 *.tgz
 .DS_Store
-.venv/
+
+build/
+artifacts/
+release-notes.md
+
 __pycache__/
-.pytest_cache/
-.ruff_cache/
+*.pyc
 runtime-image.id
 runtime-bundle/

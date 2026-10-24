@@ -1,15 +1,86 @@
-# Tag vX.Y.Z → build SEA binaries per platform → SHA256SUMS + build-provenance attestations
-# → GitHub Release → npm publish with provenance. install.sh verifies all of it.
 name: release
 on:
   push:
-    tags: ["v*.*.*"]
+    branches: [main]
+  workflow_dispatch:
+  workflow_run:
+    workflows: [Dependabot merge]
+    types: [completed]
 
 permissions:
   contents: read
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
+  verify:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_sha != github.sha)
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+
+  plan:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      sha: ${{ steps.plan.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.verify.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release-plan.mjs
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-notes
+          path: release-notes.md
+          if-no-files-found: error
+
+  package:
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - name: Stamp artifact version without modifying Git history
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: npm version "$VERSION" --no-git-tag-version --ignore-scripts --allow-same-version
+      - run: npm run build
+      - run: npm run test:package
+      - run: mkdir -p artifacts && npm pack ./build/package --ignore-scripts --pack-destination artifacts
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: npm-package
+          path: artifacts/*.tgz
+          if-no-files-found: error
+
   binaries:
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
     strategy:
       fail-fast: true
       matrix:
@@ -20,6 +91,7 @@ jobs:
           - { os: macos-15-intel, asset: star-config-darwin-x64 }
           - { os: windows-2025, asset: star-config-windows-x64.exe }
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     permissions:
       contents: read
       id-token: write
@@ -27,18 +99,27 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ needs.plan.outputs.sha }}
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-      - run: npm ci
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - name: Stamp version
+        shell: bash
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: npm version "$VERSION" --no-git-tag-version --ignore-scripts --allow-same-version
       - run: node scripts/build-sea.mjs
-      - name: Smoke test
+      - name: Smoke test and compress
         shell: bash
-        run: ./dist/${{ matrix.asset }} --version
-      - name: Compress
-        shell: bash
-        run: gzip -9 -c "dist/${{ matrix.asset }}" > "dist/${{ matrix.asset }}.gz"
+        env:
+          ASSET: ${{ matrix.asset }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          test "$(./dist/"$ASSET" --version)" = "$VERSION"
+          gzip -9 -n -c "dist/$ASSET" > "dist/$ASSET.gz"
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
           subject-path: |
@@ -51,33 +132,55 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: binaries
+    needs: [plan, package, binaries]
+    if: needs.plan.outputs.release == 'true'
     runs-on: ubuntu-24.04
-    environment: release # require a reviewer approval in repo settings
+    timeout-minutes: 10
     permissions:
       contents: write
       id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ needs.plan.outputs.sha }}
           persist-credentials: false
+          sparse-checkout: |
+            scripts/publish-package.mjs
+            install.sh
+          sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           path: assets
           merge-multiple: true
-      - name: Checksums
-        working-directory: assets
-        run: sha256sum ./*.gz | sed 's#\./##' > SHA256SUMS && cat SHA256SUMS
-      - name: GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: gh release create "$TAG" assets/* install.sh --verify-tag --generate-notes
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
-      - run: npm ci
-      - run: npm publish --provenance --access public
+          package-manager-cache: false
+      - name: Publish exact verified tarball using npm OIDC
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          NPM_CONFIG_USERCONFIG: /dev/null
+          NPM_CONFIG_GLOBALCONFIG: /dev/null
+        run: node scripts/publish-package.mjs assets/*.tgz "$VERSION"
+      - name: Create checksums
+        working-directory: assets
+        run: sha256sum ./*.gz ./*.tgz | sed 's#\./##' > SHA256SUMS
+      - name: Publish or repair GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          SHA: ${{ needs.plan.outputs.sha }}
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --target "$SHA" --title "$TAG" --notes-file assets/release-notes.md
+          fi
+          for file in assets/*.gz assets/*.tgz assets/SHA256SUMS install.sh; do
+            name=$(basename "$file")
+            digest=$(sha256sum "$file" | cut -d' ' -f1)
+            existing=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq ".assets[] | select(.name == \"$name\") | .digest")
+            if [ -n "$existing" ]; then
+              test "$existing" = "sha256:$digest" || { echo "Existing asset differs: $name" >&2; exit 1; }
+            else
+              gh release upload "$TAG" "$file"
+            fi
+          done

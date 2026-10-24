@@ -10,5 +10,3 @@
 !configs/**
 !runtime
 !runtime/Dockerfile
-!runtime/install_scanner.py
-!runtime/scan.properties

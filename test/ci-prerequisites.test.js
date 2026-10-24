@@ -70,7 +70,7 @@ it.each(['npm', 'pnpm', 'yarn', 'bun'])(
     const job = parse(githubWorkflow({ stacks: { node: { pm } }, version: '0.2.0' })).jobs.check;
     const bootstrap = job.steps.find((step) => step.name === 'Install pinned star-config CLI');
     expect(bootstrap['working-directory']).toBe('${{ runner.temp }}');
-    expect(bootstrap.run).toContain('"star-config@0.2.0"');
+    expect(bootstrap.run).toContain('"@susanbeasles/star-config@0.2.0"');
     expect(bootstrap.run).toContain('--ignore-scripts');
     expect(bootstrap.run).toContain('--registry https://registry.npmjs.org');
     expect(bootstrap.run).toContain('GITHUB_PATH');

@@ -1,13 +1,10 @@
 """Security regressions independent of a Docker daemon or elevated privileges."""
 
-import io
 import json
 import os
 import stat
-import zipfile
 
 import agent_guard as guard
-import install_scanner as scanner
 import pytest
 
 
@@ -135,37 +132,6 @@ def test_formatter_creates_a_protected_proposal_without_writing_live_source(tmp_
     assert json.loads(proposal.read_text())["changes"][0]["before_sha256"] == baseline["code.js"]
 
 
-@pytest.mark.parametrize("entry", ["expected/../escape", "/absolute", "another/file"])
-def test_scanner_archive_refuses_path_traversal(entry, tmp_path):
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w") as archive:
-        archive.writestr(entry, "synthetic")
-    with zipfile.ZipFile(buffer) as archive, pytest.raises(ValueError, match=r"layout|path"):
-        scanner.extract(archive, tmp_path, "expected")
-
-
-def test_scanner_archive_refuses_symlinks(tmp_path):
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w") as archive:
-        entry = zipfile.ZipInfo("expected/link")
-        entry.external_attr = (stat.S_IFLNK | 0o777) << 16
-        archive.writestr(entry, "/outside")
-    with zipfile.ZipFile(buffer) as archive, pytest.raises(ValueError, match="link"):
-        scanner.extract(archive, tmp_path, "expected")
-
-
-def test_scanner_integrity_failure_never_installs_an_executable(tmp_path, monkeypatch):
-    class Opener:
-        def open(self, *args, **kwargs):
-            return io.BytesIO(b"deliberately incorrect synthetic archive")
-
-    monkeypatch.setattr(scanner.urllib.request, "build_opener", lambda *args: Opener())
-    destination = tmp_path / "scanner"
-    with pytest.raises(ValueError, match="SHA-256 mismatch"):
-        scanner.install(destination, "amd64")
-    assert not destination.exists()
-
-
 def test_checks_reject_a_live_baseline_changed_while_the_snapshot_runs(tmp_path, monkeypatch):
     root = tmp_path / "controller"
     (root / "jobs").mkdir(parents=True)
@@ -194,7 +160,6 @@ def test_checks_reject_a_live_baseline_changed_while_the_snapshot_runs(tmp_path,
                     "path": str(source),
                     "uid": 20001,
                     "image": image,
-                    "sonar_key": "synthetic",
                 }
             ],
         },
@@ -204,23 +169,24 @@ def test_checks_reject_a_live_baseline_changed_while_the_snapshot_runs(tmp_path,
     assert (source / "code.js").read_text() == "concurrent edit"
 
 
-@pytest.mark.parametrize(
-    "change",
-    [
-        {"Internal": False},
-        {"Driver": "host"},
-        {"EnableIPv6": True},
-        {"Options": {}},
-    ],
-)
-def test_scanner_refuses_networks_with_external_or_host_routing(change):
-    network = {
-        "Internal": True,
-        "Driver": "bridge",
-        "EnableIPv6": False,
-        "Options": {"com.docker.network.bridge.gateway_mode_ipv4": "isolated"},
-    }
-    guard.validate_network(network)
-    network.update(change)
-    with pytest.raises(ValueError, match="isolated internal bridge"):
-        guard.validate_network(network)
+def test_snapshot_directories_are_accessible_only_to_the_sandbox_owner(tmp_path, monkeypatch):
+    root = tmp_path / "work"
+    (root / "nested").mkdir(parents=True)
+    (root / "nested/code.py").write_text("synthetic")
+    monkeypatch.setattr(guard.os, "chown", lambda *args, **kwargs: None)
+    guard.own_snapshot(root)
+    assert stat.S_IMODE(root.stat().st_mode) == 0o700
+    assert stat.S_IMODE((root / "nested").stat().st_mode) == 0o700
+
+
+@pytest.mark.parametrize("field", ["token", "network", "image"])
+def test_request_cannot_supply_runtime_policy(field):
+    with pytest.raises(ValueError, match="host execution policy"):
+        guard.request_inputs({"phase": "pre-commit", field: "untrusted"})
+
+
+def test_container_network_is_always_disabled(tmp_path):
+    spec = guard.RunSpec("sha256:" + "a" * 64, tmp_path, "synthetic")
+    args = guard.runtime_args(spec, "pre-push", [])
+    assert args[args.index("--network") + 1] == "none"
+    assert "--pull=never" in args

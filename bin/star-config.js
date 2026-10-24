@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // @ts-check
 import { parseArgs } from 'node:util';
+import { initialize } from '../src/initialize.js';
 import { version } from '../src/assets.js';
 import {
   agentHook,
@@ -14,7 +15,6 @@ import {
   prePush,
   run,
   setup,
-  sonar,
   sync,
   test,
 } from '../src/commands.js';
@@ -23,6 +23,7 @@ import { loadContext } from '../src/context.js';
 const HELP = `star-config ${version()} — lint · format · test · build · audit, for every stack in the repo
 
 Setup
+  init                          Initialize project tooling (also runs after package installation)
   setup [--owners @org/team] [--security-contact x@y] [--profile eslint|biome] [--force] [--no-install] [--no-scaffold]
   sync [--check] [--force]      Re-render managed files and tool pins (safe: keeps files you edited)
   hooks                         (Re)install git hooks
@@ -37,7 +38,6 @@ Daily
   check [--coverage] [--e2e]    lint + test + audit (what CI runs)
 
 Extras
-  sonar up|scan|status|down [--purge]   Local SonarQube in Docker (127.0.0.1:9000)
 
 Internal (hooks)
   pre-commit · pre-push · agent-hook · run <lang> [--check] <files…>
@@ -53,7 +53,6 @@ const { values, positionals } = parseArgs({
     e2e: { type: 'boolean', default: false },
     coverage: { type: 'boolean', default: false },
     docker: { type: 'boolean', default: false },
-    purge: { type: 'boolean', default: false },
     'no-install': { type: 'boolean', default: false },
     'no-scaffold': { type: 'boolean', default: false },
     owners: { type: 'string' },
@@ -79,6 +78,9 @@ async function main() {
   }
   const ctx = () => loadContext(cwd);
   switch (command) {
+    case 'init':
+      await initialize(cwd, { requireDependency: false });
+      return 0;
     case 'setup': {
       const prof = values.profile;
       if (prof && prof !== 'eslint' && prof !== 'biome') {
@@ -111,8 +113,6 @@ async function main() {
       return audit(ctx());
     case 'check':
       return check(ctx(), { coverage: values.coverage, e2e: values.e2e });
-    case 'sonar':
-      return sonar(rest[0] ?? '', { cwd, purge: values.purge });
     case 'pre-commit':
       return preCommit(ctx());
     case 'pre-push':

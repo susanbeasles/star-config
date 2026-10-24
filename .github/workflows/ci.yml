@@ -2,6 +2,14 @@
 # were force-pushed to credential stealers). Dependabot keeps the SHAs current.
 name: ci
 on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+    outputs:
+      sha:
+        value: ${{ jobs.verify.outputs.sha }}
   pull_request:
   push:
     branches: [main]
@@ -15,6 +23,8 @@ concurrency:
 
 jobs:
   verify:
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -22,24 +32,29 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ inputs.ref || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - id: source
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           check-latest: true
           cache: npm
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - name: Install polyglot test prerequisites
         run: |
           uv venv .venv
           uv pip install --python .venv/bin/python pytest==9.1.1
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - run: npm run typecheck
+      - name: Runtime unit contracts
+        run: python3 -I -m pytest -q runtime/test_runtime.py
       - run: npm run test:coverage
-      - name: Test protected runtime security contracts
-        run: .venv/bin/python -m pytest -q runtime/test_runtime.py
+      - run: npm run build
+      - run: npm run test:package
       - name: Qualify real Git hook dispatch in the ephemeral runner
         run: |
           # Secure the fixture's parent without changing any installed tool directories.

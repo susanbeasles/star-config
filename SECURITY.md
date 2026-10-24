@@ -22,12 +22,12 @@ Only the latest release on the default branch receives security fixes.
 
 ## How this repository is protected
 
-| Control                    | Tool                                      | Where          |
-| -------------------------- | ----------------------------------------- | -------------- |
-| Secret scanning            | Gitleaks (redacted output)                | pre-commit, CI |
-| Dependency vulnerabilities | Trivy, npm audit                          | CI, Dependabot |
-| Static analysis (SAST)     | Semgrep, eslint-plugin-sonarjs, SonarQube | CI, IDE        |
-| IaC misconfiguration       | Trivy                                     | CI             |
-| Dependency updates         | Dependabot with a 7-day cooldown          | weekly         |
+| Control                    | Tool                             | Where          |
+| -------------------------- | -------------------------------- | -------------- |
+| Secret scanning            | Gitleaks (redacted output)       | pre-commit, CI |
+| Dependency vulnerabilities | Trivy, npm audit                 | CI, Dependabot |
+| Static analysis (SAST)     | Semgrep, eslint-plugin-sonarjs   | CI, IDE        |
+| IaC misconfiguration       | Trivy                            | CI             |
+| Dependency updates         | Dependabot with a 7-day cooldown | weekly         |
 
-Tooling is managed by [star-config](https://www.npmjs.com/package/star-config) v0.2.0.
+Tooling is managed by [star-config](https://www.npmjs.com/package/@susanbeasles/star-config) v0.2.0.

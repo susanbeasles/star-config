@@ -6,14 +6,12 @@ import importlib.util
 import json
 import os
 import pwd
-import re
 import stat
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path("/opt/agent-guard")
-SONAR = Path("/opt/star-config/sonar")
 SERVICE = Path("/etc/systemd/system/agent-guard.service")
 
 
@@ -29,8 +27,6 @@ def parse_args():
     parser.add_argument("--project", required=True)
     parser.add_argument("--uid", required=True, type=int)
     parser.add_argument("--image", required=True)
-    parser.add_argument("--sonar-network", required=True)
-    parser.add_argument("--sonar-key", required=True)
     parser.add_argument(
         "--no-service",
         action="store_true",
@@ -87,29 +83,20 @@ def validate_installation(args, guard):
         "path": os.path.abspath(args.project),
         "uid": args.uid,
         "image": args.image,
-        "sonar_key": args.sonar_key,
     }
     guard.validate_project(project)
-    for target in (ROOT, SONAR, SERVICE):
+    for target in (ROOT, SERVICE):
         if target.exists() or target.is_symlink():
             raise ValueError("Refusing to replace an existing host installation")
-    for parent in (SONAR.parent, SERVICE.parent):
-        if parent.exists():
-            guard.protected(parent, True)
-        elif parent != SONAR.parent:
-            raise ValueError("System service directory is unavailable")
-    if not re.fullmatch(r"[0-9a-f]{64}", args.sonar_network):
-        raise ValueError("Scanner network must be an immutable network ID")
+    guard.protected(SERVICE.parent, True)
     guard.validate_engine()
     image = (
         guard.command(guard.docker("image", "inspect", "--format={{.Id}}", args.image))
         .decode()
         .strip()
     )
-    network = json.loads(guard.command(guard.docker("network", "inspect", args.sonar_network)))[0]
-    guard.validate_network(network)
-    if image != args.image or network["Id"] != args.sonar_network:
-        raise ValueError("Image or protected scanner network failed qualification")
+    if image != args.image:
+        raise ValueError("Runtime image identity changed")
     return project, worker
 
 
@@ -117,19 +104,14 @@ def write_installation(args, source, project, worker):
     runtime_source = regular(source / "agent_guard.py")
     client_source = regular(source / "client.py")
     service_source = regular(source / "agent-guard.service")
-    SONAR.parent.mkdir(mode=0o755, exist_ok=True)
     ROOT.mkdir(mode=0o755)
-    SONAR.mkdir(mode=0o755)
     for relative in ("bin", "git-hooks"):
         (ROOT / relative).mkdir(mode=0o755)
     for relative in ("lib", "jobs", "proposals", "docker"):
         (ROOT / relative).mkdir(mode=0o700)
-    for relative in ("bin", "home", "cache"):
-        (SONAR / relative).mkdir(mode=0o755)
     for destination, content, mode in (
         (ROOT / "lib/agent_guard.py", runtime_source, 0o700),
         (ROOT / "bin/agent-guard", client_source, 0o755),
-        (SONAR / "bin/sonar-scanner", client_source, 0o755),
         (SERVICE, service_source, 0o644),
     ):
         with destination.open("xb") as stream:
@@ -144,7 +126,6 @@ def write_installation(args, source, project, worker):
     policy = {
         "version": 1,
         "socket_gid": worker.pw_gid,
-        "sonar_network": args.sonar_network,
         "projects": [project],
     }
     (ROOT / "policy.json").write_text(json.dumps(policy) + "\n")

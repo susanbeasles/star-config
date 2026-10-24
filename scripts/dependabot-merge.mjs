@@ -40,12 +40,6 @@ export function eligibleFiles(files) {
           /^(\s*- uses: [\w-]+\/[\w./-]+)@[a-f0-9]{40}(?: # v[\w.+-]+)?$/,
         );
       }
-      if (file.filename === 'configs/sonarqube-compose.yml') {
-        return revisionsOnly(
-          file.patch,
-          /^(\s*image: (?:postgres|sonarqube):\d+)(?:\.\d+)*(?:-[\w.-]+)?(?:@sha256:[a-f0-9]{64})?$/,
-        );
-      }
       return false;
     })
   );

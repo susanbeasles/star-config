@@ -4,7 +4,8 @@ import { readManaged } from './managed-files.js';
 import path from 'node:path';
 import { version } from './assets.js';
 import { detectStacks } from './detect.js';
-import { gitRoot, listRepoFiles } from './git.js';
+import { gitRoot } from './git.js';
+import { projectFiles } from './project-files.js';
 
 /**
  * @typedef {object} RepoConfig   Persisted choices in .star/config.json (committed).
@@ -34,11 +35,10 @@ export function readRepoConfig(root, managed = false) {
  * @returns {Context}
  */
 export function loadContext(cwd, overrides = {}, managed = false) {
-  const root = gitRoot(cwd);
-  if (!root) {
-    throw new Error('Not inside a git repository. Run `git init` first.');
-  }
-  const files = listRepoFiles(root);
+  const root = existsSync(path.join(cwd, 'package.json'))
+    ? path.resolve(cwd)
+    : (gitRoot(cwd) ?? path.resolve(cwd));
+  const files = projectFiles(root);
   const config = {
     ...readRepoConfig(root, managed),
     ...Object.fromEntries(Object.entries(overrides).filter(([, v]) => v !== undefined)),

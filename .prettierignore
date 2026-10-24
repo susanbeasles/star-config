@@ -14,3 +14,7 @@ pnpm-lock.yaml
 yarn.lock
 bun.lock
 CHANGELOG.md
+
+build/
+artifacts/
+release-notes.md

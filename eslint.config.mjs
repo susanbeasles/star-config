@@ -4,7 +4,7 @@ export default [
   ...starConfig(),
   { ignores: ['test/fixtures/**', 'dist/**'] },
   {
-    // The CLI talks to humans on stderr through log(); runner/sonar/setup are CLI internals.
+    // The CLI talks to humans on stderr through log(); runner/setup are CLI internals.
     files: ['src/**', 'bin/**', 'test/**', 'scripts/**'],
     rules: {
       'no-console': 'error',
