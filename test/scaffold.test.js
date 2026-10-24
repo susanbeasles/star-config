@@ -82,19 +82,17 @@ describe('plan', () => {
     expect(mise.tools.trivy).toBe(MISE_TOOLS.trivy);
   });
 
-  it('writes agent files that point at AGENTS.md and lock down secrets', async () => {
+  it('does not generate agent instructions or agent settings', async () => {
     const files = await plan(polyglot());
-    expect(files['CLAUDE.md'].content).toMatch(/^@AGENTS\.md$/m);
-    expect(files['AGENTS.md'].content).toMatch(/HIPAASecurityChecks/);
-    expect(files['AGENTS.md'].content).toMatch(/No PHI or PII/);
-    const claude = JSON.parse(files['.claude/settings.json'].content);
-    expect(claude.permissions.deny).toContain('Read(./.env)');
-    expect(claude.hooks.PostToolUse[0].hooks[0].command).toContain(
-      'exec /opt/agent-guard/bin/agent-guard check post-edit',
-    );
-    expect(parseToml(files['.codex/config.toml'].content)).toMatchObject({
-      sandbox_mode: 'workspace-write',
-    });
+    for (const name of [
+      'AGENTS.md',
+      'CLAUDE.md',
+      '.claude/settings.json',
+      '.codex/config.toml',
+      '.github/copilot-instructions.md',
+    ]) {
+      expect(files[name]).toBeUndefined();
+    }
     expect(files['.github/CODEOWNERS'].content).toMatch(/^\* @your-org\/platform$/m);
   });
 

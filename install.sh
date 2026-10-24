@@ -11,7 +11,7 @@ set -eu
 
 REPO="${STAR_CONFIG_REPO:-susanbeasles/star-config}"
 VERSION="${STAR_CONFIG_VERSION:-latest}"
-DIR="${STAR_CONFIG_DIR:-$HOME/.local/bin}"
+DIR="${STAR_CONFIG_DIR:-/usr/local/bin}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -113,7 +113,6 @@ target="${DIR}/star-config"
 gzip -dc "${tmp}/${asset}" >"${tmp}/${bin}"
 mv "${tmp}/${bin}" "$target"
 chmod 0755 "$target"
-[ "$os" = darwin ] && xattr -d com.apple.quarantine "$target" 2>/dev/null || true
 
 say "installed $("$target" --version) → ${target}"
 case ":$PATH:" in

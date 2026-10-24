@@ -89,16 +89,7 @@ export function testConfigFiles(ctx) {
   const has = (/** @type {RegExp} */ re) => ctx.files.some((f) => re.test(f));
   if (s.node && !s.node.reactNative && !has(/^vitest\.config\./) && !has(/^vite\.config\./)) {
     out[s.node.typescript ? 'vitest.config.ts' : 'vitest.config.mjs'] =
-      `import { defineConfig } from 'vitest/config';
-
-export default defineConfig({
-  test: {
-    include: ['**/*.{test,spec}.?(c|m)[jt]s?(x)'],
-    exclude: ['**/node_modules/**', 'e2e/**', 'dist/**'],
-    coverage: { provider: 'v8', reporter: ['text', 'lcov'], include: ['src/**'] },
-  },
-});
-`;
+      `export { default } from '${NPM_NAME}/vitest';\n`;
   }
   if (s.node?.web && !has(/^playwright\.config\./)) {
     out['playwright.config.ts'] = `import { defineConfig, devices } from '@playwright/test';

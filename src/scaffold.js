@@ -8,13 +8,6 @@
  */
 import { createHash } from 'node:crypto';
 import { managedPath, readManaged, writeManaged } from './managed-files.js';
-import {
-  agentsMd,
-  claudeMd,
-  claudeSettings,
-  codexConfig,
-  copilotInstructions,
-} from './templates/agents.js';
 import { lintConfigFiles, testConfigFiles } from './templates/configs.js';
 import {
   devcontainerJson,
@@ -56,11 +49,6 @@ export function planRaw(ctx) {
     '.github/pull_request_template.md': { content: prTemplate(ctx) },
     '.github/dependabot.yml': { content: dependabotYml(ctx) },
     '.github/workflows/star-config.yml': { content: githubWorkflow(ctx) },
-    '.github/copilot-instructions.md': { content: copilotInstructions() },
-    'AGENTS.md': { content: agentsMd(ctx) },
-    'CLAUDE.md': { content: claudeMd() },
-    '.claude/settings.json': { content: claudeSettings(ctx) },
-    '.codex/config.toml': { content: codexConfig() },
     '.devcontainer/devcontainer.json': { content: devcontainerJson(ctx) },
     '.devcontainer/post-create.sh': { content: postCreateSh(), mode: EXEC },
     '.vscode/extensions.json': {

@@ -3,3 +3,7 @@ coverage/
 dist/
 *.tgz
 .DS_Store
+
+build/
+artifacts/
+release-notes.md

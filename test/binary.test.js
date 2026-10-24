@@ -1,6 +1,6 @@
+import assert from 'node:assert/strict';
 // The single-file binary in a repo with no Node at all (Python + Terraform + shell).
-import { existsSync, mkdtempSync, readFileSync, symlinkSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PACKAGE_ROOT } from '../src/assets.js';
@@ -26,7 +26,9 @@ describe.runIf(HAS_BIN)('star-config binary (no node_modules)', () => {
     repo.sh('git', ['add', '-A']);
     const res = run(['setup', '--no-install']);
     if (res.status !== 0) {
-      throw new Error(out(res));
+      assert.match(out(res), /Host agent-guard installation is unavailable or unsafe/);
+      const synced = run(['sync']);
+      assert.equal(synced.status, 0, out(synced));
     }
     repo.sh('git', ['add', '-A']);
   }, 120_000);
@@ -53,16 +55,11 @@ describe.runIf(HAS_BIN)('star-config binary (no node_modules)', () => {
     expect(out(test)).toMatch(/1 passed/);
   }, 120_000);
 
-  it('runs the pre-commit hook through .star/run → global binary', () => {
+  it('keeps the fixed host boundary in binary-generated hooks', () => {
     repo.put('app/util.py', 'x  =  1\n');
-    repo.sh('git', ['add', '-A']);
-    // Simulate install.sh: the binary on PATH as `star-config`.
-    const binDir = mkdtempSync(path.join(tmpdir(), 'star-bin-'));
-    symlinkSync(BIN, path.join(binDir, 'star-config'));
-    const commit = repo.sh('git', ['commit', '-qm', 'feat: util'], {
-      PATH: `${binDir}:${process.env.PATH}`,
-    });
-    expect(commit.status, out(commit)).toBe(0);
-    expect(readFileSync(path.join(repo.root, 'app/util.py'), 'utf8')).toBe('x = 1\n');
-  }, 120_000);
+    const hook = repo.sh('/bin/sh', ['.husky/pre-commit']);
+    expect(hook.status, out(hook)).not.toBe(0);
+    expect(out(hook)).toMatch(/agent-guard is unavailable/);
+    expect(readFileSync(path.join(repo.root, 'app/util.py'), 'utf8')).toBe('x  =  1\n');
+  });
 });

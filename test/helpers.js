@@ -28,6 +28,8 @@ export function makeRepo({ linkPackage = false } = {}) {
   if (linkPackage) {
     // Simulates `npm i -D star-config` without a registry: the package + its deps.
     mkdirSync(path.join(root, 'node_modules'), { recursive: true });
+    mkdirSync(path.join(root, 'node_modules', '@susanbeasles'), { recursive: true });
+    symlinkSync(PACKAGE_ROOT, path.join(root, 'node_modules', '@susanbeasles', 'star-config'));
     symlinkSync(PACKAGE_ROOT, path.join(root, 'node_modules', 'star-config'));
     mkdirSync(path.join(root, 'node_modules', '.bin'), { recursive: true });
     symlinkSync(CLI, path.join(root, 'node_modules', '.bin', 'star-config'));

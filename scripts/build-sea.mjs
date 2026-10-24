@@ -30,7 +30,7 @@ await build({
   platform: 'node',
   format: 'cjs',
   target: 'node24',
-  minify: false,
+  minify: true,
   legalComments: 'none',
   banner: { js: "const __import_meta_url = require('node:url').pathToFileURL(__filename).href;" },
   define: { 'import.meta.url': '__import_meta_url' },
@@ -59,6 +59,9 @@ run(process.execPath, ['--experimental-sea-config', seaConfig]);
 // 3. Copy node, inject the blob.
 const out = path.join(dist, exe);
 copyFileSync(process.execPath, out);
+if (os === 'linux') {
+  run('strip', ['--strip-debug', out]);
+}
 if (os === 'darwin') {
   run('codesign', ['--remove-signature', out]);
 }

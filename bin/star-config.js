@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // @ts-check
 import { parseArgs } from 'node:util';
+import { initialize } from '../src/initialize.js';
 import { version } from '../src/assets.js';
 import {
   agentHook,
@@ -23,6 +24,7 @@ import { loadContext } from '../src/context.js';
 const HELP = `star-config ${version()} — lint · format · test · build · audit, for every stack in the repo
 
 Setup
+  init                          Initialize project tooling (also runs after package installation)
   setup [--owners @org/team] [--security-contact x@y] [--profile eslint|biome] [--force] [--no-install] [--no-scaffold]
   sync [--check] [--force]      Re-render managed files and tool pins (safe: keeps files you edited)
   hooks                         (Re)install git hooks
@@ -79,6 +81,9 @@ async function main() {
   }
   const ctx = () => loadContext(cwd);
   switch (command) {
+    case 'init':
+      await initialize(cwd);
+      return 0;
     case 'setup': {
       const prof = values.profile;
       if (prof && prof !== 'eslint' && prof !== 'biome') {

@@ -99,7 +99,7 @@ function detectNode(root, files, managed) {
     web:
       !reactNative && (has('react-dom') || has('vite') || has('next') || has('@playwright/test')),
     cdk: has('aws-cdk-lib') || lock('cdk.json'),
-    hasBuild: Boolean(pkg.scripts?.build),
+    hasBuild: Boolean(pkg.scripts?.build && !/^star-config build$/.test(pkg.scripts.build)),
     lintProfile: biomeConfigured && !eslintConfigured ? 'biome' : 'eslint',
   };
 }

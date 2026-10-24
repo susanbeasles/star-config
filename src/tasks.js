@@ -53,7 +53,7 @@ function nodeTestTasks(pm, files, { cwd, e2e, coverage }) {
     (f) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(f) && !/(^|\/)e2e\//.test(f),
   );
   const script = pkg.scripts?.test ?? '';
-  if (deps.vitest && hasUnitTests) {
+  if (hasUnitTests && (!script || /vitest|star-config|no test specified/.test(script))) {
     tasks.push({
       id: 'node:vitest',
       tool: 'vitest',
@@ -159,7 +159,8 @@ export function buildTasks(stacks, files, { cwd, docker = false }) {
           '--platform=node',
           '--target=node24',
           '--format=esm',
-          '--sourcemap',
+          '--minify',
+          '--legal-comments=none',
           '--packages=external',
           '--outdir=dist',
         ],

@@ -81,11 +81,6 @@ afterAll(() => repo?.cleanup());
 describe('setup', () => {
   it('scaffolds every stack without registering mutable hooks', () => {
     for (const f of [
-      'AGENTS.md',
-      'CLAUDE.md',
-      '.claude/settings.json',
-      '.codex/config.toml',
-      '.github/copilot-instructions.md',
       'SECURITY.md',
       '.github/CODEOWNERS',
       '.github/dependabot.yml',
