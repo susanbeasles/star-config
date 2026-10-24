@@ -351,6 +351,11 @@ def main():
             )
             + "\n"
         )
+    except Exception:
+        log = STAGE / "controller.log"
+        if log.exists():
+            sys.stderr.write("Qualification controller log:\n" + log.read_text()[-4000:])
+        raise
     finally:
         cleanup(state)
 

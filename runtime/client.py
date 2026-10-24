@@ -45,9 +45,9 @@ def main():
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (OSError, ValueError, KeyError, TypeError):
+    except (OSError, ValueError, KeyError, TypeError) as error:
         sys.stderr.write(
             "agent-guard is unavailable or refused the request; "
-            "no checkout fallback is permitted.\n"
+            "no checkout fallback is permitted (" + type(error).__name__ + ").\n"
         )
         raise SystemExit(127) from None
