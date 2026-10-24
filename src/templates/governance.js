@@ -1,4 +1,5 @@
 // @ts-check
+import { NPM_NAME } from '../constants.js';
 /**
  * @typedef {import('../detect.js').Stacks} Stacks
  * @typedef {{ stacks: Stacks, repoName: string, owners: string[], securityContact: string | null, version: string, files: string[], skip?: string[] }} Ctx
@@ -41,7 +42,7 @@ Only the latest release on the default branch receives security fixes.
 | IaC misconfiguration | Trivy${ctx.stacks.node?.cdk ? ', cdk-nag (HIPAA + AWS Solutions packs)' : ''}${ctx.stacks.terraform ? ', Checkov' : ''}${ctx.stacks.cloudflare ? ', wrangler-nag' : ''} | CI |
 | Dependency updates | Dependabot with a 7-day cooldown | weekly |
 
-Tooling is managed by [star-config](https://www.npmjs.com/package/star-config) v${ctx.version}.
+Tooling is managed by [star-config](https://www.npmjs.com/package/${NPM_NAME}) v${ctx.version}.
 `;
 }
 

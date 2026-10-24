@@ -60,6 +60,19 @@ try {
     existsSync(path.join(work, 'dist/value.js')) || existsSync(path.join(work, 'dist/index.js')),
     'build did not produce output',
   );
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: work });
+  execFileSync('git', ['add', 'src'], { cwd: work });
+  execFileSync(
+    process.execPath,
+    [path.join(work, 'node_modules/lint-staged/bin/lint-staged.js'), '--no-stash'],
+    {
+      cwd: work,
+      env: {
+        ...process.env,
+        PATH: `${path.join(work, 'node_modules/.bin')}${path.delimiter}${process.env.PATH}`,
+      },
+    },
+  );
   const config = path.join(work, 'prettier.config.mjs');
   writeFileSync(config, 'export default { semi: false };\n');
   npm('rebuild', '@susanbeasles/star-config', '--offline');

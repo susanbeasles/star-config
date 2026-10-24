@@ -1,5 +1,5 @@
 // star-config — Prettier 3. Repo usage (prettier.config.mjs):
-//   export { default } from 'star-config/prettier';
+//   export { default } from '@susanbeasles/star-config/prettier';
 /** @type {import('prettier').Config} */
 const config = {
   printWidth: 100,

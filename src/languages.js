@@ -31,6 +31,7 @@
  * @property {string} glob                   lint-staged glob.
  * @property {Step[]} steps
  */
+import { NPM_NAME } from './constants.js';
 import { DOCKERFILE_RE } from './detect.js';
 import { MISE_TOOLS } from './tools.js';
 
@@ -62,7 +63,7 @@ const PRETTIER = {
     ],
     flag: (p) => ['--config', p],
   },
-  install: 'npm i -D star-config',
+  install: `npm i -D ${NPM_NAME}`,
 };
 
 /** @type {Step} */
@@ -84,7 +85,7 @@ const ESLINT = {
     ],
     flag: (p) => ['--config', p],
   },
-  install: 'npm i -D star-config',
+  install: `npm i -D ${NPM_NAME}`,
 };
 
 /** @type {Step} */
@@ -96,7 +97,7 @@ const BIOME = {
     fix: ['check', '--write', '--no-errors-on-unmatched', '--files-ignore-unknown=true'],
     check: ['ci', '--no-errors-on-unmatched', '--files-ignore-unknown=true'],
   },
-  install: 'npm i -D star-config',
+  install: `npm i -D ${NPM_NAME}`,
 };
 
 const JS_EXT = ['js', 'mjs', 'cjs', 'jsx', 'ts', 'mts', 'cts', 'tsx'];

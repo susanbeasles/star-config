@@ -1,7 +1,9 @@
 #!/bin/sh
 # star-config installer — https://github.com/susanbeasles/star-config
 #
-#   curl -fsSL https://install.susanb.dev | sh
+#   curl -fsSL https://install.susanb.dev -o install.sh
+#   sh install.sh                      # /usr/local/bin must already be writable
+#   sudo sh install.sh                 # explicit privileged installation
 #   curl -fsSL https://install.susanb.dev | sh -s -- --version 0.2.0 --dir /usr/local/bin
 #
 # Downloads the single-file binary for this OS/arch from GitHub Releases, verifies its
@@ -25,6 +27,7 @@ while [ $# -gt 0 ]; do
       ;;
     -h | --help)
       echo "usage: install.sh [--version X.Y.Z] [--dir PATH]"
+      echo "Default: /usr/local/bin; requires write access or explicit sudo sh install.sh."
       exit 0
       ;;
     *)
@@ -39,6 +42,19 @@ die() {
   say "error: $*"
   exit 1
 }
+
+# Check the destination before network access; never elevate automatically.
+[ ! -L "$DIR" ] || die "installation directory must not be a symlink: $DIR"
+probe_dir="$DIR"
+while [ ! -e "$probe_dir" ]; do
+  probe_dir="$(dirname "$probe_dir")"
+done
+[ -d "$probe_dir" ] || die "installation destination is not a directory: $probe_dir"
+[ -w "$probe_dir" ] || die "installation directory is not writable: $DIR; save this script, review it, then run sudo sh install.sh, or select a writable --dir"
+if [ -e "$DIR/star-config" ] || [ -L "$DIR/star-config" ]; then
+  [ -f "$DIR/star-config" ] && [ ! -L "$DIR/star-config" ] \
+    || die "refusing an unsafe existing install target: $DIR/star-config"
+fi
 
 case "$(uname -s)" in
   Linux) os=linux ;;

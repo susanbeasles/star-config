@@ -65,22 +65,47 @@ export function releasePlan(cwd = process.cwd()) {
   };
 }
 
-export async function completedRelease(plan, token, request = fetch) {
-  const response = await request(
-    `https://api.github.com/repos/susanbeasles/star-config/releases/tags/${plan.tag}`,
-    {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
-      redirect: 'error',
-      signal: AbortSignal.timeout(30_000),
-    },
-  );
+async function githubJson(route, token, request) {
+  const response = await request(`https://api.github.com/repos/susanbeasles/star-config/${route}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
+    redirect: 'error',
+    signal: AbortSignal.timeout(30_000),
+  });
   if (response.status === 404) {
-    return false;
+    return null;
   }
   if (!response.ok) {
     throw new Error(`Cannot inspect release completion: GitHub ${response.status}`);
   }
-  const release = await response.json();
+  return response.json();
+}
+
+async function verifyReleaseTag(plan, token, request) {
+  if (!/^[a-f0-9]{40}$/.test(plan.sha ?? '')) {
+    throw new Error('A verified source commit SHA is required');
+  }
+  let object = (await githubJson(`git/ref/tags/${encodeURIComponent(plan.tag)}`, token, request))
+    ?.object;
+  const visited = new Set();
+  // Annotated tags can point at another tag; resolve only Git objects in this repo.
+  while (object?.type === 'tag') {
+    if (!/^[a-f0-9]{40}$/.test(object.sha) || visited.has(object.sha) || visited.size >= 8) {
+      throw new Error('Invalid or excessive annotated release tag chain');
+    }
+    visited.add(object.sha);
+    object = (await githubJson(`git/tags/${object.sha}`, token, request))?.object;
+  }
+  if (object?.type !== 'commit' || object.sha !== plan.sha) {
+    throw new Error('Release tag does not match the verified source commit');
+  }
+}
+
+export async function completedRelease(plan, token, request = fetch) {
+  const release = await githubJson(`releases/tags/${encodeURIComponent(plan.tag)}`, token, request);
+  if (!release) {
+    return false;
+  }
+  await verifyReleaseTag(plan, token, request);
   const required = [
     'star-config-linux-x64.gz',
     'star-config-linux-arm64.gz',
@@ -92,7 +117,7 @@ export async function completedRelease(plan, token, request = fetch) {
     'install.sh',
   ];
   return (
-    !release.draft &&
+    release.draft === false &&
     release.tag_name === plan.tag &&
     required.every((name) =>
       release.assets?.some(

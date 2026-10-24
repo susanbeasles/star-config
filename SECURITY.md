@@ -30,4 +30,4 @@ Only the latest release on the default branch receives security fixes.
 | IaC misconfiguration       | Trivy                                     | CI             |
 | Dependency updates         | Dependabot with a 7-day cooldown          | weekly         |
 
-Tooling is managed by [star-config](https://www.npmjs.com/package/star-config) v0.2.0.
+Tooling is managed by [star-config](https://www.npmjs.com/package/@susanbeasles/star-config) v0.2.0.

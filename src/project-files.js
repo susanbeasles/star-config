@@ -12,10 +12,40 @@ export function projectFiles(root) {
   }
   /** @type {string[]} */
   const files = [];
-  const excluded = new Set(['node_modules', 'dist', 'build', 'target', 'vendor', 'coverage']);
+  const excluded = new Set([
+    'node_modules',
+    'dist',
+    'build',
+    'target',
+    'vendor',
+    'coverage',
+    '.git',
+    '.hg',
+    '.svn',
+    '.venv',
+    '.yarn',
+    '.pnpm-store',
+    '.npm',
+    '.cache',
+    '.next',
+    '.nuxt',
+    '.tox',
+    '.mypy_cache',
+    '.pytest_cache',
+    '.ruff_cache',
+    '.terraform',
+    '.build',
+    '.swiftpm',
+    'secrets',
+  ]);
   const visit = (/** @type {string} */ dir, depth = 0) => {
     for (const entry of readdirSync(path.join(root, dir), { withFileTypes: true })) {
-      if (entry.name.startsWith('.') || excluded.has(entry.name) || entry.isSymbolicLink()) {
+      if (
+        excluded.has(entry.name) ||
+        entry.name === '.env' ||
+        entry.name.startsWith('.env.') ||
+        entry.isSymbolicLink()
+      ) {
         continue;
       }
       const rel = path.posix.join(dir, entry.name);

@@ -41,7 +41,10 @@ export async function initialize(root) {
     version: version(),
     skip: config.skip ?? [],
   };
-  const templates = { ...lintConfigFiles(ctx), ...testConfigFiles(ctx) };
+  const templates = {
+    ...lintConfigFiles(ctx, { command: 'star-config' }),
+    ...testConfigFiles(ctx),
+  };
   const entries = await Promise.all(
     Object.entries(templates)
       .filter(([rel]) => !ctx.skip.includes(rel))

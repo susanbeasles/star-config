@@ -19,9 +19,10 @@ const extendOrCopy = (ctx, asset, extendStub) =>
 
 /**
  * @param {Ctx} ctx
+ * @param {{ command?: string }} [options]
  * @returns {Record<string, string>}  repo-relative path → content
  */
-export function lintConfigFiles(ctx) {
+export function lintConfigFiles(ctx, { command = '.star/run' } = {}) {
   const s = ctx.stacks;
   /** @type {Record<string, string>} */
   const out = { '.editorconfig': readAsset('configs/editorconfig') };
@@ -47,7 +48,7 @@ export default [
     out['lint-staged.config.mjs'] =
       `import { createLintStagedConfig } from '${NPM_NAME}/lint-staged';
 
-export default createLintStagedConfig({ command: '.star/run', jsProfile: '${s.node.lintProfile}' });
+export default createLintStagedConfig({ command: ${JSON.stringify(command)}, jsProfile: '${s.node.lintProfile}' });
 `;
   }
   if (s.python) {

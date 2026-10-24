@@ -24,6 +24,9 @@ describe('automatic tooling initialization', () => {
     expect(readFileSync(path.join(repo.root, 'prettier.config.mjs'), 'utf8')).toBe(
       'export default {};\n',
     );
+    expect(readFileSync(path.join(repo.root, 'lint-staged.config.mjs'), 'utf8')).toContain(
+      "command: 'star-config'",
+    );
     const pkg = JSON.parse(readFileSync(path.join(repo.root, 'package.json'), 'utf8'));
     expect(pkg.scripts.test).toBe('node --test');
     const ctx = loadContext(repo.root);

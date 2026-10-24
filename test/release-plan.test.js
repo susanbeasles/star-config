@@ -29,7 +29,7 @@ describe('release version selection', () => {
   });
 
   it('skips complete releases but retries incomplete releases and fails on lookup errors', async () => {
-    const plan = { tag: 'v1.2.3', version: '1.2.3' };
+    const plan = { tag: 'v1.2.3', version: '1.2.3', sha: 'a'.repeat(40) };
     const names = [
       'star-config-linux-x64.gz',
       'star-config-linux-arm64.gz',
@@ -44,9 +44,12 @@ describe('release version selection', () => {
       name,
       digest: `sha256-${'a'.repeat(64)}`.replace('-', ':'),
     }));
-    const response = (items) => async () => ({
+    const response = (items) => async (url) => ({
       ok: true,
-      json: async () => ({ tag_name: plan.tag, assets: items }),
+      json: async () =>
+        url.includes('/git/ref/')
+          ? { object: { type: 'commit', sha: plan.sha } }
+          : { tag_name: plan.tag, draft: false, assets: items },
     });
     expect(await completedRelease(plan, 'synthetic', response(assets))).toBe(true);
     expect(await completedRelease(plan, 'synthetic', response(assets.slice(1)))).toBe(false);
@@ -54,6 +57,35 @@ describe('release version selection', () => {
     await expect(
       completedRelease(plan, 'synthetic', async () => ({ status: 503 })),
     ).rejects.toThrow(/503/);
+  });
+
+  it('resolves annotated tags and refuses mismatched commits or cyclic tags', async () => {
+    const plan = { tag: 'v1.2.3', version: '1.2.3', sha: 'a'.repeat(40) };
+    const tag = 'b'.repeat(40);
+    const request = (target) => async (url) => ({
+      ok: true,
+      json: async () => {
+        if (url.includes('/git/ref/')) {
+          return { object: { type: 'tag', sha: tag } };
+        }
+        if (url.includes('/git/tags/')) {
+          return { object: target };
+        }
+        return { tag_name: plan.tag, draft: false, assets: [] };
+      },
+    });
+    expect(
+      await completedRelease(plan, 'synthetic', request({ type: 'commit', sha: plan.sha })),
+    ).toBe(false);
+    await expect(
+      completedRelease(plan, 'synthetic', request({ type: 'commit', sha: 'c'.repeat(40) })),
+    ).rejects.toThrow(/does not match/);
+    await expect(
+      completedRelease(plan, 'synthetic', request({ type: 'tag', sha: tag })),
+    ).rejects.toThrow(/tag chain/);
+    await expect(
+      completedRelease({ ...plan, sha: 'invalid' }, 'synthetic', request({})),
+    ).rejects.toThrow(/source commit SHA/);
   });
 
   it('only reads commits since an ancestral release and repairs retries', () => {

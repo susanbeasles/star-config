@@ -24,7 +24,8 @@ all package managers is **not currently guaranteed**.
 project commands, install native toolchains, provision a host runner, modify Git
 hook policy, or generate agent instructions. Existing host security boundaries
 remain enforced by `setup` and `hooks`. Managed writes currently require Linux;
-macOS and Windows initialization remain unsupported.
+macOS and Windows initialization remain unsupported. Automatic postinstall setup
+is skipped on those platforms so dependency installation can succeed.
 
 ## Commands
 
@@ -73,3 +74,7 @@ Only minified modules, runtime configs, package metadata, and the license ship.
 README files, agent templates, tests, source maps, and build scripts do not ship.
 Tool dependencies contribute additional installation size beyond the small
 star-config tarball.
+
+The standalone installer defaults to `/usr/local/bin` and checks write access
+before downloading. For a privileged install, save and review `install.sh`, then
+run `sudo sh install.sh`. It never elevates automatically.
