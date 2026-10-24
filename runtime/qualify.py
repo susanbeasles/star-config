@@ -5,6 +5,7 @@ import base64
 import hashlib
 import json
 import os
+import pwd
 import shutil
 import stat
 import subprocess
@@ -32,7 +33,13 @@ def run(args, *, cwd=None, data=None, user=False, **options):
     if options.keys() - {"env", "success"}:
         raise ValueError("Unexpected qualification execution option")
     if user:
-        args = ["/usr/bin/setpriv", f"--reuid={UID}", f"--regid={UID}", "--clear-groups", *args]
+        args = [
+            "/usr/bin/setpriv",
+            f"--reuid={UID}",
+            f"--regid={pwd.getpwuid(UID).pw_gid}",
+            "--clear-groups",
+            *args,
+        ]
     result = subprocess.run(  # noqa: S603 - fixed test commands and argv, never shell input
         args,
         cwd=cwd,

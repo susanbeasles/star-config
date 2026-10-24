@@ -3,9 +3,11 @@
 import json
 import os
 import stat
+from types import SimpleNamespace
 
 import agent_guard as guard
 import pytest
+import qualify
 
 
 def test_snapshot_excludes_credentials_and_rejects_symlinks(tmp_path):
@@ -190,3 +192,24 @@ def test_container_network_is_always_disabled(tmp_path):
     args = guard.runtime_args(spec, "pre-push", [])
     assert args[args.index("--network") + 1] == "none"
     assert "--pull=never" in args
+
+
+def test_qualification_uses_the_workers_registered_primary_group(monkeypatch):
+    monkeypatch.setattr(qualify.pwd, "getpwuid", lambda uid: SimpleNamespace(pw_gid=321))
+    calls = []
+
+    def capture(args, **kwargs):
+        calls.append(args)
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(qualify.subprocess, "run", capture)
+    qualify.run(["/usr/bin/true"], user=True)
+    assert calls == [
+        [
+            "/usr/bin/setpriv",
+            f"--reuid={qualify.UID}",
+            "--regid=321",
+            "--clear-groups",
+            "/usr/bin/true",
+        ]
+    ]
