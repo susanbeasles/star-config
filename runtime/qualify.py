@@ -119,7 +119,7 @@ def prepare_fixture(state):
         state.project / "test/fixture.bats",
         (
             '#!/usr/bin/env bats\n@test "synthetic check" {\n'
-            '  run ./fixture.sh\n  [ "$status" -eq 0 ]\n}\n'
+            '\trun ./fixture.sh\n\t[ "$status" -eq 0 ]\n}\n'
         ),
     )
     run(["/usr/bin/git", "init", "-q", "-b", "main"], cwd=state.project, user=True)
