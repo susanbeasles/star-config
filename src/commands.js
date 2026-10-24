@@ -200,7 +200,12 @@ export const audit = (ctx) =>
  * @param {{ coverage?: boolean, e2e?: boolean }} opts
  */
 export function check(ctx, opts) {
-  const results = { lint: lint(ctx, {}), test: test(ctx, opts), audit: audit(ctx) };
+  const results = {
+    lint: lint(ctx, {}),
+    test: test(ctx, opts),
+    build: build(ctx, {}),
+    audit: audit(ctx),
+  };
   const failed = Object.entries(results)
     .filter(([, c]) => c !== 0)
     .map(([k]) => k);

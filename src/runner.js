@@ -1,7 +1,8 @@
 // @ts-check
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readFileSync, readSync } from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { assetPath, IS_SEA, PACKAGE_ROOT } from './assets.js';
 
 /** @typedef {import('./languages.js').Step} Step */
@@ -57,14 +58,24 @@ function probe(cmd, prefix) {
  * @returns {string | null}
  */
 export function findNpmBin(pkg, binName, from) {
+  // Node's resolver also supports Plug'n'Play and non-hoisted package layouts.
+  try {
+    const require = createRequire(path.join(path.resolve(from), 'package.json'));
+    const manifest = require.resolve(`${pkg}/package.json`);
+    const resolved = manifestBin(manifest, pkg, binName);
+    if (resolved) {
+      return resolved;
+    }
+  } catch {
+    // Packages may block package.json through exports; use the filesystem fallback.
+  }
   let dir = path.resolve(from);
   for (;;) {
     const manifest = path.join(dir, 'node_modules', pkg, 'package.json');
     if (existsSync(manifest)) {
-      const { bin } = JSON.parse(readFileSync(manifest, 'utf8'));
-      const rel = typeof bin === 'string' ? bin : bin?.[binName ?? pkg.split('/').pop() ?? pkg];
-      if (rel) {
-        return path.join(path.dirname(manifest), rel);
+      const resolved = manifestBin(manifest, pkg, binName);
+      if (resolved) {
+        return resolved;
       }
     }
     const parent = path.dirname(dir);
@@ -73,6 +84,33 @@ export function findNpmBin(pkg, binName, from) {
     }
     dir = parent;
   }
+}
+
+/** @param {string} manifest @param {string} pkg @param {string | undefined} binName */
+function manifestBin(manifest, pkg, binName) {
+  const { bin } = JSON.parse(readFileSync(manifest, 'utf8'));
+  const rel = typeof bin === 'string' ? bin : bin?.[binName ?? pkg.split('/').pop() ?? pkg];
+  return rel ? path.join(path.dirname(manifest), rel) : null;
+}
+
+/** Native npm tools (including optimized esbuild installs) execute directly.
+ * @param {string} bin
+ */
+function npmCommand(bin) {
+  const fd = openSync(bin, 'r');
+  const header = Buffer.alloc(4);
+  try {
+    readSync(fd, header, 0, 4, 0);
+  } finally {
+    closeSync(fd);
+  }
+  const native =
+    (header[0] === 0x7f && header.subarray(1).toString() === 'ELF') ||
+    header.subarray(0, 2).toString() === 'MZ' ||
+    ['feedface', 'feedfacf', 'cefaedfe', 'cffaedfe', 'cafebabe', 'bebafeca'].includes(
+      header.toString('hex'),
+    );
+  return native ? { cmd: bin, prefix: [] } : { cmd: nodeBinary(), prefix: [bin] };
 }
 
 /** The node binary to run npm tools with. In the SEA binary, execPath is star-config itself. */
@@ -98,7 +136,7 @@ function resolveNpm(step, cwd) {
   }
   const local = findNpmBin(step.npm.pkg, step.npm.bin, cwd);
   const bin = local ?? (IS_SEA ? null : findNpmBin(step.npm.pkg, step.npm.bin, PACKAGE_ROOT));
-  return bin ? { cmd: nodeBinary(), prefix: [bin] } : null;
+  return bin ? npmCommand(bin) : null;
 }
 
 /** @param {Step} step @param {string} cwd @returns {Resolved | null} */

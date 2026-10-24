@@ -1,0 +1,11 @@
+name: Repository security baseline
+disable-default-queries: false
+queries:
+  - uses: security-extended
+paths-ignore:
+  - "**/node_modules/**"
+  - "**/.venv/**"
+  - "**/target/**"
+  - "**/dist/**"
+  - "**/build/**"
+  - "**/coverage/**"

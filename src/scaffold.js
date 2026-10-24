@@ -8,13 +8,7 @@
  */
 import { createHash } from 'node:crypto';
 import { managedPath, readManaged, writeManaged } from './managed-files.js';
-import {
-  agentsMd,
-  claudeMd,
-  claudeSettings,
-  codexConfig,
-  copilotInstructions,
-} from './templates/agents.js';
+import { repositoryFiles } from './templates/repository.js';
 import { lintConfigFiles, testConfigFiles } from './templates/configs.js';
 import {
   devcontainerJson,
@@ -27,7 +21,7 @@ import {
   vscodeExtensions,
   vscodeSettings,
 } from './templates/devenv.js';
-import { codeowners, dependabotYml, prTemplate, securityMd } from './templates/governance.js';
+import { codeowners, prTemplate, securityMd } from './templates/governance.js';
 import { formatGenerated } from './format.js';
 import { dim, green, log, yellow } from './runner.js';
 
@@ -54,13 +48,7 @@ export function planRaw(ctx) {
     'SECURITY.md': { content: securityMd(ctx) },
     '.github/CODEOWNERS': { content: codeowners(ctx) },
     '.github/pull_request_template.md': { content: prTemplate(ctx) },
-    '.github/dependabot.yml': { content: dependabotYml(ctx) },
     '.github/workflows/star-config.yml': { content: githubWorkflow(ctx) },
-    '.github/copilot-instructions.md': { content: copilotInstructions() },
-    'AGENTS.md': { content: agentsMd(ctx) },
-    'CLAUDE.md': { content: claudeMd() },
-    '.claude/settings.json': { content: claudeSettings(ctx) },
-    '.codex/config.toml': { content: codexConfig() },
     '.devcontainer/devcontainer.json': { content: devcontainerJson(ctx) },
     '.devcontainer/post-create.sh': { content: postCreateSh(), mode: EXEC },
     '.vscode/extensions.json': {
@@ -70,6 +58,7 @@ export function planRaw(ctx) {
     'sonar-project.properties': { content: sonarProperties(ctx) },
   };
   for (const [rel, content] of Object.entries({
+    ...repositoryFiles(ctx),
     ...lintConfigFiles(ctx),
     ...testConfigFiles(ctx),
   })) {
@@ -120,12 +109,13 @@ export async function plan(ctx) {
  * @param {string} root
  * @param {() => Ctx} load
  * @param {{ force?: boolean, version: string, dryRun?: boolean }} opts
+ * @param {(ctx: Ctx) => Promise<Record<string, FileSpec>>} [render]
  */
-export async function converge(root, load, opts) {
+export async function converge(root, load, opts, render = plan) {
   /** @type {ReturnType<typeof apply>} */
   const total = { written: [], updated: [], kept: [], unchanged: [] };
   for (let round = 0; round < 3; round++) {
-    const r = apply(root, await plan(load()), opts);
+    const r = apply(root, await render(load()), opts);
     total.written.push(...r.written.filter((f) => !total.written.includes(f)));
     total.updated.push(
       ...r.updated.filter((f) => !total.updated.includes(f) && !total.written.includes(f)),

@@ -82,19 +82,23 @@ describe('plan', () => {
     expect(mise.tools.trivy).toBe(MISE_TOOLS.trivy);
   });
 
-  it('writes agent files that point at AGENTS.md and lock down secrets', async () => {
+  it('generates a shared repository baseline without agent execution settings', async () => {
     const files = await plan(polyglot());
-    expect(files['CLAUDE.md'].content).toMatch(/^@AGENTS\.md$/m);
-    expect(files['AGENTS.md'].content).toMatch(/HIPAASecurityChecks/);
-    expect(files['AGENTS.md'].content).toMatch(/No PHI or PII/);
-    const claude = JSON.parse(files['.claude/settings.json'].content);
-    expect(claude.permissions.deny).toContain('Read(./.env)');
-    expect(claude.hooks.PostToolUse[0].hooks[0].command).toContain(
-      'exec /opt/agent-guard/bin/agent-guard check post-edit',
-    );
-    expect(parseToml(files['.codex/config.toml'].content)).toMatchObject({
-      sandbox_mode: 'workspace-write',
-    });
+    for (const name of [
+      'AGENTS.md',
+      'INSTRUCTIONS.md',
+      'CLAUDE.md',
+      'GEMINI.md',
+      'CODEX.md',
+      '.github/copilot-instructions.md',
+      '.github/codeql/codeql-config.yml',
+      '.github/dependabot.yml',
+      '.gitignore',
+    ]) {
+      expect(files[name]).toBeDefined();
+    }
+    expect(files['.claude/settings.json']).toBeUndefined();
+    expect(files['.codex/config.toml']).toBeUndefined();
     expect(files['.github/CODEOWNERS'].content).toMatch(/^\* @your-org\/platform$/m);
   });
 
@@ -118,7 +122,8 @@ describe('apply (manifest-aware)', () => {
     const ctx = polyglot();
     const files = await plan(ctx);
     const count = Object.keys(files).length;
-    expect(apply(ctx.root, files, { version: '1' }).written).toHaveLength(count);
+    repo.put('.gitignore', files['.gitignore'].content);
+    expect(apply(ctx.root, files, { version: '1' }).written).toHaveLength(count - 1);
     expect(apply(ctx.root, files, { version: '1' }).unchanged).toHaveLength(count);
 
     writeFileSync(path.join(ctx.root, 'AGENTS.md'), '# mine\n');

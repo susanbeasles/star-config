@@ -19,9 +19,10 @@ const extendOrCopy = (ctx, asset, extendStub) =>
 
 /**
  * @param {Ctx} ctx
+ * @param {{ command?: string }} [options]
  * @returns {Record<string, string>}  repo-relative path → content
  */
-export function lintConfigFiles(ctx) {
+export function lintConfigFiles(ctx, { command = '.star/run' } = {}) {
   const s = ctx.stacks;
   /** @type {Record<string, string>} */
   const out = { '.editorconfig': readAsset('configs/editorconfig') };
@@ -47,7 +48,7 @@ export default [
     out['lint-staged.config.mjs'] =
       `import { createLintStagedConfig } from '${NPM_NAME}/lint-staged';
 
-export default createLintStagedConfig({ command: '.star/run', jsProfile: '${s.node.lintProfile}' });
+export default createLintStagedConfig({ command: ${JSON.stringify(command)}, jsProfile: '${s.node.lintProfile}' });
 `;
   }
   if (s.python) {
@@ -89,16 +90,7 @@ export function testConfigFiles(ctx) {
   const has = (/** @type {RegExp} */ re) => ctx.files.some((f) => re.test(f));
   if (s.node && !s.node.reactNative && !has(/^vitest\.config\./) && !has(/^vite\.config\./)) {
     out[s.node.typescript ? 'vitest.config.ts' : 'vitest.config.mjs'] =
-      `import { defineConfig } from 'vitest/config';
-
-export default defineConfig({
-  test: {
-    include: ['**/*.{test,spec}.?(c|m)[jt]s?(x)'],
-    exclude: ['**/node_modules/**', 'e2e/**', 'dist/**'],
-    coverage: { provider: 'v8', reporter: ['text', 'lcov'], include: ['src/**'] },
-  },
-});
-`;
+      `export { default } from '${NPM_NAME}/vitest';\n`;
   }
   if (s.node?.web && !has(/^playwright\.config\./)) {
     out['playwright.config.ts'] = `import { defineConfig, devices } from '@playwright/test';

@@ -1,6 +1,6 @@
 // @ts-check
 import { guardCommand } from '../hook-boundary.js';
-import { INSTALL_URL } from '../constants.js';
+import { INSTALL_URL, NPM_NAME } from '../constants.js';
 import { MISE_TOOLS, PY_DEV } from '../tools.js';
 
 /** @typedef {import('./governance.js').Ctx} Ctx */
@@ -74,7 +74,7 @@ if command -v star-config >/dev/null 2>&1; then
 fi
 echo "star-config is not installed." >&2
 echo "  curl -fsSL ${INSTALL_URL} | sh      # any repo" >&2
-echo "  npm i -D star-config        # Node repos" >&2
+echo "  npm i -D ${NPM_NAME}        # Node repos" >&2
 exit 127
 `;
 }
@@ -251,7 +251,7 @@ function pinnedCliInstall(version) {
           NPM_CONFIG_USERCONFIG: /dev/null
           NPM_CONFIG_GLOBALCONFIG: /dev/null
         run: |
-          npm install --ignore-scripts --no-audit --no-fund --package-lock=false --registry https://registry.npmjs.org --prefix "$RUNNER_TEMP/star-config-cli" "star-config@${version}"
+          npm install --ignore-scripts --no-audit --no-fund --package-lock=false --registry https://registry.npmjs.org --prefix "$RUNNER_TEMP/star-config-cli" "${NPM_NAME}@${version}"
           echo "$RUNNER_TEMP/star-config-cli/node_modules/.bin" >> "$GITHUB_PATH"
 `;
 }

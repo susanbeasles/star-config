@@ -2,7 +2,7 @@
 // Prettier owns formatting; ESLint owns correctness, style-guide and security rules.
 //
 // Repo usage (eslint.config.mjs):
-//   import { starConfig } from 'star-config/eslint';
+//   import { starConfig } from '@susanbeasles/star-config/eslint';
 //   export default starConfig();                         // auto-detects React / RN / tests
 //   export default starConfig({ typeChecked: true });    // + type-aware rules (slower; good for CI)
 //   export default [...starConfig(), { rules: { ... } }]; // local overrides last
