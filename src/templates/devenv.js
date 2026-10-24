@@ -328,7 +328,7 @@ jobs:
         with:
           fetch-depth: 0 # gitleaks scans full history
           persist-credentials: false
-      - uses: jdx/mise-action@v3 # TODO pin to SHA — installs mise.toml tools (checksums from mise.lock)
+      - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
 ${nodeSteps}${pythonSteps}      - run: .star/run check --coverage
 ${e2e}`;
 }
