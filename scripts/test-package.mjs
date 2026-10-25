@@ -22,7 +22,8 @@ try {
   assert(pack.unpackedSize < 512 * 1024, `Package is too large: ${pack.unpackedSize}`);
   for (const { path: file } of pack.files) {
     assert(
-      /^(?:bin|src|chunks|configs)\//.test(file) || ['LICENSE', 'package.json'].includes(file),
+      /^(?:bin|src|chunks|configs|native)\//.test(file) ||
+        ['LICENSE', 'package.json'].includes(file),
       file,
     );
     assert(!/\.map$|README|templates\/agents/.test(file), file);
@@ -37,14 +38,10 @@ try {
   writeFileSync(path.join(work, 'package.json'), JSON.stringify(manifest));
   // Install a local tarball in a synthetic project; the registry receives dependency names only.
   npm('install', `./${pack.filename}`, '--no-audit', '--no-fund');
-  // npm saves newly added dependencies after their lifecycle scripts. Refuse
-  // incidental transitive initialization, then qualify the explicit recovery path.
-  execFileSync(
-    process.execPath,
-    [path.join(work, 'node_modules/@susanbeasles/star-config/bin/star-config.js'), 'init'],
-    { cwd: work },
+  assert(
+    existsSync(path.join(work, '.star/manifest.json')),
+    'first npm install did not automatically initialize the project',
   );
-  assert(existsSync(path.join(work, '.star/manifest.json')), 'init did not initialize the project');
   const pkg = JSON.parse(readFileSync(path.join(work, 'package.json'), 'utf8'));
   assert.equal(pkg.scripts['custom-check'], 'node --version');
   assert.equal(pkg.scripts.lint, 'star-config lint');
@@ -111,7 +108,7 @@ try {
     assert(!existsSync(path.join(work, file)), file);
   }
   process.stdout.write(
-    `Packed install and explicit initialization verified: ${pack.files.length} files, ${pack.size} bytes compressed, ${pack.unpackedSize} bytes unpacked\n`,
+    `Packed install and automatic initialization verified: ${pack.files.length} files, ${pack.size} bytes compressed, ${pack.unpackedSize} bytes unpacked\n`,
   );
 } finally {
   rmSync(work, { recursive: true, force: true });

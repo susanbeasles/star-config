@@ -42,6 +42,7 @@ export function projectFiles(root) {
     for (const entry of readdirSync(path.join(root, dir), { withFileTypes: true })) {
       if (
         excluded.has(entry.name) ||
+        (dir === '.star' && entry.name === 'backups') ||
         entry.name === '.env' ||
         entry.name.startsWith('.env.') ||
         entry.isSymbolicLink()

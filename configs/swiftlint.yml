@@ -14,8 +14,11 @@ opt_in_rules:
   - sorted_first_last
   - closure_spacing
   - redundant_nil_coalescing
+analyzer_rules:
   - unused_declaration
   - unused_import
+trailing_comma:
+  mandatory_comma: true
 cyclomatic_complexity:
   warning: 10
   error: 15

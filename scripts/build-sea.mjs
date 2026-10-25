@@ -22,6 +22,10 @@ const run = (cmd, args) => execFileSync(cmd, args, { stdio: 'inherit', cwd: root
 
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
+if (process.platform === 'darwin') {
+  const native = `managed-fs-darwin-${process.arch}.node`;
+  copyFileSync(path.join(root, 'build/native', native), path.join(dist, native));
+}
 
 // 1. Bundle. import.meta.url doesn't exist in CJS, so derive it from __filename.
 await build({

@@ -15,6 +15,33 @@ import {
   unlinkSync,
 } from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
+import { IS_SEA, PACKAGE_ROOT } from './assets.js';
+
+/** @typedef {{read(path: string): {bytes: Buffer, mode: number} | null, write(path: string, content: Buffer, mode: number, temporary: string): void, directory(path: string): boolean, remove(path: string): void}} NativeFS */
+/** @type {NativeFS | undefined} */
+let nativeFS;
+function native() {
+  if (process.platform !== 'darwin' && process.env.STAR_CONFIG_NATIVE_FS_TEST !== '1') {
+    return undefined;
+  }
+  if (!nativeFS) {
+    const name = `managed-fs-${process.platform}-${process.arch}.node`;
+    const folder = IS_SEA ? path.dirname(process.execPath) : PACKAGE_ROOT;
+    const relative = IS_SEA ? name : `native/${name}`;
+    let target = managedPath(folder, relative);
+    try {
+      lstatSync(target);
+    } catch (error) {
+      if (/** @type {NodeJS.ErrnoException} */ (error).code !== 'ENOENT' || IS_SEA) {
+        throw error;
+      }
+      target = managedPath(folder, `build/native/${name}`);
+    }
+    nativeFS = createRequire(import.meta.url)(target);
+  }
+  return nativeFS;
+}
 
 /** Validate every existing component, including dangling links. @param {string} root @param {string} rel @param {boolean} [directory] */
 export function managedPath(root, rel, directory = false) {
@@ -91,6 +118,10 @@ function openParent(root, rel, create, directory = false) {
  * @param {string} root @param {string} rel
  */
 export function managedDirectory(root, rel) {
+  const fs = native();
+  if (fs) {
+    return fs.directory(managedPath(root, rel, true));
+  }
   let parent;
   let fd;
   try {
@@ -113,7 +144,11 @@ export function managedDirectory(root, rel) {
 }
 
 /** @param {string} root @param {string} rel */
-export function readManaged(root, rel) {
+export function readManagedState(root, rel) {
+  const fs = native();
+  if (fs) {
+    return fs.read(managedPath(root, rel));
+  }
   let parent;
   try {
     parent = openParent(root, rel, false);
@@ -140,7 +175,10 @@ export function readManaged(root, rel) {
     if (!info.isFile() || info.nlink !== 1) {
       throw new Error(`Unsafe managed file: ${rel}`);
     }
-    return readFileSync(fd, 'utf8');
+    if (info.size > 32 * 1024 * 1024) {
+      throw new Error(`Managed file exceeds the 32 MiB limit: ${rel}`);
+    }
+    return { bytes: readFileSync(fd), mode: info.mode & 0o777 };
   } finally {
     if (fd !== undefined) {
       closeSync(fd);
@@ -149,8 +187,18 @@ export function readManaged(root, rel) {
   }
 }
 
-/** @param {string} root @param {string} rel @param {string} content @param {number} [mode] */
+/** @param {string} root @param {string} rel */
+export function readManaged(root, rel) {
+  return readManagedState(root, rel)?.bytes.toString('utf8') ?? null;
+}
+
+/** @param {string} root @param {string} rel @param {string | Uint8Array} content @param {number} [mode] */
 export function writeManaged(root, rel, content, mode = 0o644) {
+  const fs = native();
+  if (fs) {
+    fs.write(managedPath(root, rel), Buffer.from(content), mode, `.star-write-${randomUUID()}`);
+    return;
+  }
   const parent = openParent(root, rel, true);
   const temporary = `/proc/self/fd/${parent.fd}/.star-write-${randomUUID()}`;
   let fd;
@@ -214,6 +262,11 @@ export function validatePackageInputs(root) {
  * @param {string} root @param {string} rel
  */
 export function removeManaged(root, rel) {
+  const fs = native();
+  if (fs) {
+    fs.remove(managedPath(root, rel));
+    return;
+  }
   const parent = openParent(root, rel, false);
   try {
     unlinkSync(parent.target);

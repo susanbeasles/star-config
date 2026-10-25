@@ -9,6 +9,7 @@
  * @typedef {object} ConfigSpec
  * @property {string} [asset]                Shipped default (path under the package), injected when the repo has none.
  * @property {string[]} local                Repo-local names that win when present. `file#table` = TOML file containing [table].
+ * @property {boolean} [explicitLocal]       Pass the matching config path for tools without alias discovery.
  * @property {(path: string) => string[]} [flag]
  *
  * @typedef {object} Step
@@ -59,6 +60,12 @@ const PRETTIER = {
       '.prettierrc.yml',
       '.prettierrc.js',
       '.prettierrc.mjs',
+      '.prettierrc.cjs',
+      '.prettierrc.toml',
+      '.prettierrc.ts',
+      'prettier.config.ts',
+      'prettier.config.mts',
+      'prettier.config.cts',
       'package.json#prettier',
     ],
     flag: (p) => ['--config', p],
@@ -82,6 +89,14 @@ const ESLINT = {
       'eslint.config.cjs',
       'eslint.config.ts',
       'eslint.config.mts',
+      'eslint.config.cts',
+      '.eslintrc',
+      '.eslintrc.js',
+      '.eslintrc.cjs',
+      '.eslintrc.json',
+      '.eslintrc.yml',
+      '.eslintrc.yaml',
+      'package.json#eslintConfig',
     ],
     flag: (p) => ['--config', p],
   },
@@ -301,7 +316,8 @@ const NATIVE = [
         },
         config: {
           asset: 'configs/swiftlint.yml',
-          local: ['.swiftlint.yml'],
+          explicitLocal: true,
+          local: ['.swiftlint.yml', '.swiftlint.yaml'],
           flag: (p) => ['--config', p],
         },
         install: MISE_HINT('swiftlint'),

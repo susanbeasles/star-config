@@ -15,7 +15,9 @@ export function listRepoFiles(cwd) {
   if (res.status !== 0) {
     throw new Error(`git ls-files failed: ${res.stderr || res.error?.message}`);
   }
-  return [...new Set(res.stdout.split('\0').filter(Boolean))];
+  return [
+    ...new Set(res.stdout.split('\0').filter((file) => file && !file.startsWith('.star/backups/'))),
+  ];
 }
 
 /** @param {string} cwd */

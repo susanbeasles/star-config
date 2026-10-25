@@ -123,6 +123,25 @@ else
   say "tip: install + log in to the GitHub CLI to also verify build provenance"
 fi
 
+if [ "$os" = darwin ]; then
+  module="managed-fs-darwin-${arch}.node"
+  module_asset="${module}.gz"
+  fetch "${base}/${module_asset}" "${tmp}/${module_asset}" || die "download failed: ${module_asset}"
+  expected="$(awk -v f="$module_asset" '$2 == f || $2 == "*"f { print $1 }' "${tmp}/SHA256SUMS")"
+  [ -n "$expected" ] || die "no checksum for ${module_asset}"
+  [ "$expected" = "$(sha256 "${tmp}/${module_asset}")" ] || die "filesystem companion checksum mismatch"
+  if [ "${STAR_CONFIG_SKIP_ATTESTATION:-0}" != 1 ] && command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    gh attestation verify "${tmp}/${module_asset}" --repo "$REPO" >/dev/null 2>&1 || die "filesystem companion provenance failed"
+  fi
+  if [ -e "$DIR/$module" ] || [ -L "$DIR/$module" ]; then
+    [ -f "$DIR/$module" ] && [ ! -L "$DIR/$module" ] || die "unsafe filesystem companion target"
+  fi
+  mkdir -p "$DIR"
+  gzip -dc "${tmp}/${module_asset}" > "${tmp}/${module}"
+  mv "${tmp}/${module}" "$DIR/$module"
+  chmod 0644 "$DIR/$module"
+fi
+
 mkdir -p "$DIR"
 target="${DIR}/star-config"
 [ "$os" = windows ] && target="${target}.exe"
