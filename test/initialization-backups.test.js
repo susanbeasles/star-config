@@ -54,6 +54,18 @@ describe('reversible initialization', () => {
     expect(projectFiles(repo.root).some((file) => file.startsWith('.star/backups/'))).toBe(false);
   });
 
+  it('never snapshots private or dependency directories in Git projects', async () => {
+    project();
+    repo.put('secrets/service/package.json', '{"synthetic":"private-marker"}');
+    repo.put('vendor/service/package.json', '{"synthetic":"vendor-marker"}');
+    await initialize(repo.root);
+    const stored = backup();
+    expect(projectFiles(repo.root)).not.toContain('secrets/service/package.json');
+    expect(stored.files.some((file) => file.path.startsWith('secrets/'))).toBe(false);
+    expect(stored.files.some((file) => file.path.startsWith('vendor/'))).toBe(false);
+    expect(JSON.stringify(stored)).not.toContain(Buffer.from('private-marker').toString('base64'));
+  });
+
   it('preserves embedded package configurations instead of adding competing files', async () => {
     project();
     repo.put(

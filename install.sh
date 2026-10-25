@@ -111,17 +111,20 @@ actual="$(sha256 "${tmp}/${asset}")"
 [ "$expected" = "$actual" ] || die "checksum mismatch for ${asset} (expected ${expected}, got ${actual})"
 say "checksum OK"
 
-if [ "${STAR_CONFIG_SKIP_ATTESTATION:-0}" = 1 ]; then
-  say "attestation check skipped (STAR_CONFIG_SKIP_ATTESTATION=1)"
-elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-  gh attestation verify "${tmp}/${asset}" --repo "$REPO" >/dev/null 2>&1 \
-    || die "build provenance attestation failed for ${asset}"
-  say "build provenance attestation OK"
-elif [ "${STAR_CONFIG_REQUIRE_ATTESTATION:-0}" = 1 ]; then
-  die "STAR_CONFIG_REQUIRE_ATTESTATION=1 needs an authenticated GitHub CLI (gh auth login)"
-else
-  say "tip: install + log in to the GitHub CLI to also verify build provenance"
-fi
+verify_attestation() {
+  if [ "${STAR_CONFIG_SKIP_ATTESTATION:-0}" = 1 ]; then
+    [ "${STAR_CONFIG_REQUIRE_ATTESTATION:-0}" != 1 ] || die "required attestation cannot be skipped"
+    say "attestation check skipped (STAR_CONFIG_SKIP_ATTESTATION=1)"
+  elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    gh attestation verify "$1" --repo "$REPO" >/dev/null 2>&1 || die "build provenance attestation failed"
+    say "build provenance attestation OK"
+  elif [ "${STAR_CONFIG_REQUIRE_ATTESTATION:-0}" = 1 ]; then
+    die "STAR_CONFIG_REQUIRE_ATTESTATION=1 needs an authenticated GitHub CLI (gh auth login)"
+  else
+    say "tip: install + log in to the GitHub CLI to also verify build provenance"
+  fi
+}
+verify_attestation "${tmp}/${asset}"
 
 if [ "$os" = darwin ]; then
   module="managed-fs-darwin-${arch}.node"
@@ -130,9 +133,7 @@ if [ "$os" = darwin ]; then
   expected="$(awk -v f="$module_asset" '$2 == f || $2 == "*"f { print $1 }' "${tmp}/SHA256SUMS")"
   [ -n "$expected" ] || die "no checksum for ${module_asset}"
   [ "$expected" = "$(sha256 "${tmp}/${module_asset}")" ] || die "filesystem companion checksum mismatch"
-  if [ "${STAR_CONFIG_SKIP_ATTESTATION:-0}" != 1 ] && command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-    gh attestation verify "${tmp}/${module_asset}" --repo "$REPO" >/dev/null 2>&1 || die "filesystem companion provenance failed"
-  fi
+  verify_attestation "${tmp}/${module_asset}"
   if [ -e "$DIR/$module" ] || [ -L "$DIR/$module" ]; then
     [ -f "$DIR/$module" ] && [ ! -L "$DIR/$module" ] || die "unsafe filesystem companion target"
   fi

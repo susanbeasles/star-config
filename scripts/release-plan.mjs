@@ -111,6 +111,8 @@ export async function completedRelease(plan, token, request = fetch) {
     'star-config-linux-arm64.gz',
     'star-config-darwin-arm64.gz',
     'star-config-darwin-x64.gz',
+    'managed-fs-darwin-arm64.node.gz',
+    'managed-fs-darwin-x64.node.gz',
     'star-config-windows-x64.exe.gz',
     `susanbeasles-star-config-${plan.version}.tgz`,
     'SHA256SUMS',

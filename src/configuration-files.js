@@ -1,6 +1,7 @@
 // @ts-check
 import { parse } from 'smol-toml';
 import { readManaged } from './managed-files.js';
+import { isProjectFile } from './project-files.js';
 
 /** @type {Array<[string, string[], string | null]>} */
 const GROUPS = [
@@ -139,5 +140,5 @@ const NAMES = new Set([
 
 /** @param {string} file */
 export function configurationFile(file) {
-  return NAMES.has(file.split('/').at(-1) ?? '');
+  return isProjectFile(file) && NAMES.has(file.split('/').at(-1) ?? '');
 }

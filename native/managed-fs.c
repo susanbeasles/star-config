@@ -130,6 +130,7 @@ static napi_value write_file(napi_env env, napi_callback_info info) {
   if (ok && (fchmod(fd, mode) < 0 || fsync(fd) < 0)) ok = 0;
   if (close(fd) < 0) ok = 0;
   if (ok && renameat(parent, temporary, parent, leaf) < 0) ok = 0;
+  if (ok && fsync(parent) < 0) ok = 0;
   int err = errno;
   unlinkat(parent, temporary, 0);
   close(parent); free(path); free(temporary);

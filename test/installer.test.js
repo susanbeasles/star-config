@@ -36,3 +36,41 @@ it('rejects an unwritable destination before executing any download or external 
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+const verifier = script.slice(
+  script.indexOf('verify_attestation() {'),
+  script.indexOf('verify_attestation "${tmp}/${asset}"'),
+);
+it('requires provenance for each asset even if authentication disappears between downloads', () => {
+  const result = spawnSync('/bin/sh', ['-s'], {
+    encoding: 'utf8',
+    env: { PATH: '/usr/bin:/bin', STAR_CONFIG_REQUIRE_ATTESTATION: '1' },
+    input: `
+      die() { printf '%s\\n' "$1" >&2; exit 1; }
+      say() { :; }
+      gh() { [ "$1" != auth ] || [ "$authenticated" = yes ]; }
+      ${verifier}
+      authenticated=yes
+      verify_attestation binary
+      authenticated=no
+      verify_attestation companion
+      exit 42
+    `,
+  });
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('needs an authenticated GitHub CLI');
+});
+
+it('rejects conflicting required and skipped provenance settings', () => {
+  const result = spawnSync('/bin/sh', ['-s'], {
+    encoding: 'utf8',
+    env: {
+      PATH: '/usr/bin:/bin',
+      STAR_CONFIG_REQUIRE_ATTESTATION: '1',
+      STAR_CONFIG_SKIP_ATTESTATION: '1',
+    },
+    input: `die() { printf '%s\\n' "$1" >&2; exit 1; }; say() { :; }; ${verifier}\nverify_attestation asset`,
+  });
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('cannot be skipped');
+});
