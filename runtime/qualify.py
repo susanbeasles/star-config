@@ -110,9 +110,23 @@ def prepare_fixture(state):
     state.created_user = True
     FIXTURE.mkdir(mode=0o755)
     state.project.mkdir(mode=0o755)
-    os.chown(FIXTURE, UID, UID)
     os.chown(state.project, UID, UID)
-    script = '#!/bin/sh\nexec node /opt/star-config/bin/star-config.js "$@"\n'
+    script = run(
+        [
+            "/usr/bin/docker",
+            "run",
+            "--rm",
+            "--pull=never",
+            "--network=none",
+            "--read-only",
+            "--entrypoint=node",
+            state.image,
+            "--input-type=module",
+            "-e",
+            'import {launcher} from "/opt/star-config/src/templates/devenv.js";'
+            "process.stdout.write(launcher())",
+        ]
+    ).stdout.decode()
     write(state.project / ".star/run", script, True)
     write(state.project / "fixture.sh", "#!/bin/sh\nprintf '%s\\n' synthetic\n", True)
     write(
@@ -134,6 +148,8 @@ def prepare_fixture(state):
         cwd=state.project,
         user=True,
     )
+    state.remote.mkdir(mode=0o755)
+    os.chown(state.remote, UID, UID)
     run(["/usr/bin/git", "init", "-q", "--bare", str(state.remote)], user=True)
     run(
         ["/usr/bin/git", "remote", "add", "origin", str(state.remote)],

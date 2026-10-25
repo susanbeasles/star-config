@@ -34,8 +34,28 @@ PUSH_ARGUMENTS = 2
 MAX_FILES = 20000
 MAX_REQUEST = 65536
 MAX_OUTPUT = 512 * 1024
+CLEANUP_ATTEMPTS = 3
 PHASES = {"pre-commit", "pre-push", "post-edit"}
-SKIP = {".git", "node_modules", ".venv", ".ssh", ".aws", ".config", "secrets"}
+SKIP = {
+    ".git",
+    "node_modules",
+    ".venv",
+    ".ssh",
+    ".aws",
+    ".config",
+    "secrets",
+    ".npmrc",
+    ".netrc",
+    "_netrc",
+    ".pypirc",
+    ".git-credentials",
+    ".docker",
+    ".azure",
+    ".kube",
+    ".gnupg",
+    ".yarnrc",
+    ".yarnrc.yml",
+}
 GIT_PATHS = {"HEAD", "index", "objects", "refs", "packed-refs", "shallow"}
 ENV = {"PATH": "/usr/bin:/bin", "HOME": "/var/empty"}
 
@@ -293,16 +313,23 @@ def run_container(args, data, name, output, timeout=1200):
                 return 124
             return process.returncode if process.returncode >= 0 else 1
     finally:
-        try:
-            command(docker("rm", "--force", name), timeout=30)
-        except (OSError, subprocess.SubprocessError):
-            if process is not None and process.poll() is None:
-                process.kill()
-            # A failed cleanup is an error, never a successful check.
-            if process is not None and process.returncode == 0:
-                raise RuntimeError("Container cleanup failed") from None
         if process is not None:
+            if process.poll() is None:
+                process.kill()
             process.wait(timeout=30)
+        for attempt in range(CLEANUP_ATTEMPTS):
+            try:
+                command(docker("rm", "--force", name), timeout=10)
+                break
+            except (OSError, subprocess.SubprocessError):
+                if attempt == CLEANUP_ATTEMPTS - 1:
+                    raise CleanupError(
+                        "Container cleanup failed; controller must restart"
+                    ) from None
+
+
+class CleanupError(RuntimeError):
+    """Stop accepting work until service restart reclaims labeled containers."""
 
 
 def proposal(work, baseline, state, name):
@@ -361,6 +388,7 @@ def validate_project(project):
     supplied = project.get("path", "")
     if not os.path.isabs(supplied) or "," in supplied or "\n" in supplied:
         raise ValueError("Invalid registered checkout")
+    protected(Path(supplied).parent, True)
     current = Path("/")
     for part in Path(supplied).parts[1:]:
         current /= part
@@ -501,6 +529,8 @@ def respond(connection, policy):
     try:
         request = receive(connection)
         response = handle(request, uid, policy)
+    except CleanupError:
+        raise
     except (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.SubprocessError):
         response = {
             "status": 1,

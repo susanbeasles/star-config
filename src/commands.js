@@ -388,7 +388,7 @@ export async function sync(ctx, { force = false, dryRun = false }) {
     dryRun,
   });
   report(r);
-  if (dryRun && (r.written.length || r.updated.length)) {
+  if (dryRun && (r.written.length || r.updated.length || r.removed.length)) {
     log(yellow('Managed files are out of date. Run `star-config sync`.'));
     return 1;
   }

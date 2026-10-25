@@ -6,6 +6,7 @@ import stat
 from types import SimpleNamespace
 
 import agent_guard as guard
+import install as installer
 import pytest
 import qualify
 
@@ -213,3 +214,99 @@ def test_qualification_uses_the_workers_registered_primary_group(monkeypatch):
             "/usr/bin/true",
         ]
     ]
+
+
+@pytest.mark.parametrize(
+    "name", [".npmrc", ".netrc", "_netrc", ".pypirc", ".git-credentials", ".yarnrc.yml"]
+)
+def test_credential_files_are_never_copied(name, tmp_path):
+    source = tmp_path / "source"
+    destination = tmp_path / "destination"
+    source.mkdir()
+    destination.mkdir()
+    (source / name).write_text("synthetic credential")
+    assert guard.snapshot(source, destination) == {}
+    assert not list(destination.iterdir())
+
+
+@pytest.mark.parametrize("directory", [".docker", ".azure", ".kube", ".gnupg"])
+def test_credential_directories_are_never_copied(directory, tmp_path):
+    source = tmp_path / "source"
+    destination = tmp_path / "destination"
+    (source / directory).mkdir(parents=True)
+    (source / directory / "config.json").write_text("synthetic credential")
+    destination.mkdir()
+    assert guard.snapshot(source, destination) == {}
+    assert not list(destination.iterdir())
+
+
+def test_project_registration_rejects_writable_parent_directories(tmp_path):
+    with pytest.raises(ValueError, match="Unsafe host installation"):
+        guard.validate_project(
+            {"path": str(tmp_path / "project"), "uid": 20001, "image": "sha256:" + "a" * 64}
+        )
+
+
+def test_installation_works_with_a_restrictive_administrator_umask(tmp_path, monkeypatch):
+    root = tmp_path / "guard"
+    service = tmp_path / "agent-guard.service"
+    source = tmp_path / "source"
+    source.mkdir()
+    for name in ["agent_guard.py", "client.py", "agent-guard.service"]:
+        (source / name).write_text("synthetic installer input")
+    monkeypatch.setattr(installer, "ROOT", root)
+    monkeypatch.setattr(installer, "SERVICE", service)
+    previous = os.umask(0o077)
+    try:
+        installer.write_installation(None, source, {}, SimpleNamespace(pw_gid=321))
+    finally:
+        os.umask(previous)
+    for path in [root, root / "bin", root / "git-hooks"]:
+        assert stat.S_IMODE(path.stat().st_mode) == 0o755
+    for path in [root / "lib", root / "jobs", root / "proposals", root / "docker"]:
+        assert stat.S_IMODE(path.stat().st_mode) == 0o700
+    assert stat.S_IMODE((root / "policy.json").stat().st_mode) == 0o600
+
+
+@pytest.mark.parametrize("exit_status", [0, 1, 124])
+def test_cleanup_failure_stops_the_controller_for_every_workload_status(
+    exit_status, tmp_path, monkeypatch
+):
+    process = SimpleNamespace(
+        communicate=lambda *args, **kwargs: None,
+        returncode=exit_status,
+        poll=lambda: exit_status,
+        wait=lambda **kwargs: None,
+    )
+    monkeypatch.setattr(guard.subprocess, "Popen", lambda *args, **kwargs: process)
+    attempts = []
+
+    def fail(args, **kwargs):
+        attempts.append(args)
+        raise OSError("synthetic cleanup failure")
+
+    monkeypatch.setattr(guard, "command", fail)
+    with pytest.raises(guard.CleanupError, match="must restart"):
+        guard.run_container([], b"", "synthetic", tmp_path / "output")
+    assert len(attempts) == guard.CLEANUP_ATTEMPTS
+
+
+def test_transient_cleanup_failure_is_retried(tmp_path, monkeypatch):
+    process = SimpleNamespace(
+        communicate=lambda *args, **kwargs: None,
+        returncode=1,
+        poll=lambda: 1,
+        wait=lambda **kwargs: None,
+    )
+    monkeypatch.setattr(guard.subprocess, "Popen", lambda *args, **kwargs: process)
+    attempts = []
+
+    def cleanup(args, **kwargs):
+        attempts.append(args)
+        if len(attempts) == 1:
+            raise OSError("transient synthetic failure")
+        return b""
+
+    monkeypatch.setattr(guard, "command", cleanup)
+    assert guard.run_container([], b"", "synthetic", tmp_path / "output") == 1
+    assert len(attempts) == 2

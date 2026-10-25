@@ -6,7 +6,9 @@ ENV MISE_DATA_DIR=/opt/mise MISE_CONFIG_DIR=/opt/mise-config MISE_CACHE_DIR=/tmp
 WORKDIR /opt/star-config
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund && npm cache clean --force
-COPY mise.toml ./
+COPY mise.toml mise.lock ./
+COPY .mise/locks ./.mise/locks
+COPY runtime/requirements-test.txt ./runtime/requirements-test.txt
 # SHELL enables Bash pipefail; this step also enables errexit and nounset.
 RUN set -eu; \
     case "$TARGETARCH" in \
@@ -21,12 +23,15 @@ RUN set -eu; \
     chmod 0755 /usr/local/bin/mise; \
     mkdir -p /opt/mise-config; \
     cp mise.toml /opt/mise-config/config.toml; \
+    cp mise.lock /opt/mise-config/config.lock; \
+    cp -R .mise /opt/mise-config/.mise; \
     mise trust /opt/star-config/mise.toml; \
-    mise install --yes; \
+    mise install --locked --yes; \
     uv venv --no-python-downloads --python "$(mise where python)/bin/python3" /opt/star-config/.venv; \
-    uv pip install --python /opt/star-config/.venv/bin/python pytest==9.1.1
+    uv pip install --python /opt/star-config/.venv/bin/python --require-hashes -r runtime/requirements-test.txt
 COPY bin ./bin
 COPY src ./src
 COPY configs ./configs
+RUN ln -s /opt/star-config/bin/star-config.js /usr/local/bin/star-config
 USER 65532:65532
 WORKDIR /work

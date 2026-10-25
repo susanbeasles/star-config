@@ -13,11 +13,12 @@ rejected. An existing installation is never overwritten.
 Use a dedicated worker UID; UID 65532
 is reserved for isolated workloads and cannot be registered as a host worker.
 
-The image contains Node 24, exact npm dependencies, reviewed native tool versions,
+The image contains Node 24, exact npm dependencies, committed native tool locks,
 and Python test tooling. The Node image uses a content digest;
 Mise acquisitions verify committed vendor SHA-256 values before
 execution. Image builds acquire dependencies. Checks never pull an image or install
-replacement tools.
+replacement tools. Native acquisitions use `mise install --locked` with committed
+URLs, checksums and Python dependency locks.
 
 Each check uses a bounded, descriptor-relative copy. Symlinks, hard links, devices,
 credential files, external Git object pointers, host Git configuration, and hooks
@@ -50,7 +51,8 @@ verified main commit; no local image build is required.
 
 On the designated Linux host, review the bundle, verify SHA256SUMS, then stage it
 in a root-owned directory outside worker write access. A normal standalone Git
-checkout must already exist and belong to the registered worker. Register the
+checkout must already exist and belong to the registered worker. Every parent of
+the checkout must be root-owned and not writable by the worker. Register the
 worker, project and immutable image ID:
 
 ```sh

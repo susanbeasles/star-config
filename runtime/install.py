@@ -105,8 +105,10 @@ def write_installation(args, source, project, worker):
     client_source = regular(source / "client.py")
     service_source = regular(source / "agent-guard.service")
     ROOT.mkdir(mode=0o755)
+    ROOT.chmod(0o755)
     for relative in ("bin", "git-hooks"):
         (ROOT / relative).mkdir(mode=0o755)
+        (ROOT / relative).chmod(0o755)
     for relative in ("lib", "jobs", "proposals", "docker"):
         (ROOT / relative).mkdir(mode=0o700)
     for destination, content, mode in (
