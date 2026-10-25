@@ -176,11 +176,13 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
+      - name: Isolate npm configuration
+        run: install -m 600 /dev/null "$RUNNER_TEMP/star-config-npm-global"
       - name: Publish exact verified tarball using npm OIDC
         env:
           VERSION: ${{ needs.plan.outputs.version }}
           NPM_CONFIG_USERCONFIG: /dev/null
-          NPM_CONFIG_GLOBALCONFIG: /dev/null
+          NPM_CONFIG_GLOBALCONFIG: ${{ runner.temp }}/star-config-npm-global
         run: node scripts/publish-package.mjs assets/*.tgz "$VERSION"
       - name: Create checksums
         working-directory: assets
