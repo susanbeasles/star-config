@@ -37,8 +37,13 @@ if (published.status === 0 && published.stdout.trim()) {
   if (!process.env.ACTIONS_ID_TOKEN_REQUEST_URL || !process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN) {
     throw new Error('GitHub OIDC is unavailable; id-token: write is required');
   }
+  const current = run('view', name, 'version', '--json', '--registry', registry);
+  if (current.status !== 0 && !current.stderr.includes('E404')) {
+    throw new Error(`Package lookup failed: ${current.stderr}`);
+  }
+  const bootstrap = current.status !== 0 || JSON.parse(current.stdout) === '0.0.0-stage';
   const result = run(
-    'publish',
+    ...(bootstrap ? ['stage', 'publish'] : ['publish']),
     tarball,
     '--ignore-scripts',
     '--provenance',
@@ -51,5 +56,10 @@ if (published.status === 0 && published.stdout.trim()) {
   process.stderr.write(result.stderr ?? '');
   if (result.status !== 0) {
     process.exitCode = result.status ?? 1;
+  } else if (bootstrap) {
+    process.stderr.write(
+      'First release staged for npm approval. After approving it, rerun the failed publication job to verify integrity and finish the GitHub Release.\n',
+    );
+    process.exitCode = 78;
   }
 }

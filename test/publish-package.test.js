@@ -26,9 +26,10 @@ afterEach(() => {
 it('publishes a relative artifact as an absolute local tarball rather than a Git repository spec', async () => {
   vi.mocked(spawnSync)
     .mockReturnValueOnce({ status: 1, stderr: 'E404', stdout: '' })
+    .mockReturnValueOnce({ status: 0, stderr: '', stdout: '"0.2.0"' })
     .mockReturnValueOnce({ status: 0, stderr: '', stdout: '' });
   await import('../scripts/publish-package.mjs');
-  const [, args, options] = vi.mocked(spawnSync).mock.calls[1];
+  const [, args, options] = vi.mocked(spawnSync).mock.calls[2];
   expect(args.slice(0, 2)).toEqual(['publish', path.resolve('assets/package.tgz')]);
   expect(args).toContain('--provenance');
   expect(args.slice(-2)).toEqual(['--registry', 'https://registry.npmjs.org']);
@@ -38,7 +39,29 @@ it('publishes a relative artifact as an absolute local tarball rather than a Git
 it('propagates npm publication failure', async () => {
   vi.mocked(spawnSync)
     .mockReturnValueOnce({ status: 1, stderr: 'E404', stdout: '' })
+    .mockReturnValueOnce({ status: 0, stderr: '', stdout: '"0.2.0"' })
     .mockReturnValueOnce({ status: 1, stderr: '', stdout: '' });
   await import('../scripts/publish-package.mjs');
   expect(process.exitCode).toBe(1);
 });
+
+it.each([null, '0.0.0-stage'])(
+  'stages a bootstrap release (%s) for approval without completing the release',
+  async (current) => {
+    vi.mocked(spawnSync)
+      .mockReturnValueOnce({ status: 1, stderr: 'E404', stdout: '' })
+      .mockReturnValueOnce(
+        current === null
+          ? { status: 1, stderr: 'E404', stdout: '' }
+          : { status: 0, stderr: '', stdout: JSON.stringify(current) },
+      )
+      .mockReturnValueOnce({ status: 0, stderr: '', stdout: '' });
+    await import('../scripts/publish-package.mjs');
+    expect(vi.mocked(spawnSync).mock.calls[2][1].slice(0, 3)).toEqual([
+      'stage',
+      'publish',
+      path.resolve('assets/package.tgz'),
+    ]);
+    expect(process.exitCode).toBe(78);
+  },
+);
