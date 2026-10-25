@@ -74,6 +74,18 @@ describe('configArgs', () => {
   });
 });
 
+it('retains the shipped flat ESLint fallback for preserved legacy configuration', () => {
+  const eslint = getLanguage('js').steps.find((step) => step.tool === 'eslint');
+  writeFileSync(path.join(dir, '.eslintrc.json'), '{"extends":"synthetic-legacy"}');
+  writeFileSync(path.join(dir, 'package.json'), '{"eslintConfig":{"root":true}}');
+  expect(configArgs(eslint, dir)).toEqual([
+    '--config',
+    path.join(PACKAGE_ROOT, 'configs/eslint.config.mjs'),
+  ]);
+  writeFileSync(path.join(dir, 'eslint.config.mjs'), 'export default [];');
+  expect(configArgs(eslint, dir)).toEqual([]);
+});
+
 describe('buildArgs', () => {
   it('finds TOML sections after earlier tables without interpreting regex characters', () => {
     const step = {

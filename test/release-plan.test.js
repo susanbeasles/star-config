@@ -35,6 +35,8 @@ describe('release version selection', () => {
       'star-config-linux-arm64.gz',
       'star-config-darwin-arm64.gz',
       'star-config-darwin-x64.gz',
+      'managed-fs-darwin-arm64.node.gz',
+      'managed-fs-darwin-x64.node.gz',
       'star-config-windows-x64.exe.gz',
       'susanbeasles-star-config-1.2.3.tgz',
       'SHA256SUMS',
@@ -52,7 +54,15 @@ describe('release version selection', () => {
           : { tag_name: plan.tag, draft: false, assets: items },
     });
     expect(await completedRelease(plan, 'synthetic', response(assets))).toBe(true);
-    expect(await completedRelease(plan, 'synthetic', response(assets.slice(1)))).toBe(false);
+    for (const asset of assets) {
+      expect(
+        await completedRelease(
+          plan,
+          'synthetic',
+          response(assets.filter((item) => item !== asset)),
+        ),
+      ).toBe(false);
+    }
     expect(await completedRelease(plan, 'synthetic', async () => ({ status: 404 }))).toBe(false);
     await expect(
       completedRelease(plan, 'synthetic', async () => ({ status: 503 })),

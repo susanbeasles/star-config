@@ -182,7 +182,7 @@ export function configArgs(step, cwd) {
       continue;
     }
     if (!table) {
-      return [];
+      return config.explicitLocal && config.flag ? config.flag(full) : [];
     }
     if (hasSection(full, table)) {
       return [];

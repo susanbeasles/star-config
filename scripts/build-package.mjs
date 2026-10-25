@@ -1,4 +1,13 @@
-import { chmodSync, copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  existsSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, transform } from 'esbuild';
@@ -40,10 +49,28 @@ for (const file of configAssets(root)) {
   mkdirSync(path.dirname(path.join(out, file)), { recursive: true });
   writeFileSync(path.join(out, file), content);
 }
+
+const native = path.join(root, 'build/native');
+if (process.env.STAR_CONFIG_REQUIRE_NATIVE === '1') {
+  for (const arch of ['arm64', 'x64']) {
+    if (!existsSync(path.join(native, `managed-fs-darwin-${arch}.node`))) {
+      throw new Error(`Missing macOS filesystem artifact: ${arch}`);
+    }
+  }
+}
+if (existsSync(native)) {
+  mkdirSync(path.join(out, 'native'), { recursive: true });
+  for (const name of readdirSync(native)) {
+    if (/^managed-fs-(linux|darwin)-(arm64|x64)\.node$/.test(name)) {
+      copyFileSync(path.join(native, name), path.join(out, 'native', name));
+    }
+  }
+}
+
 const { devDependencies: _dev, scripts: _scripts, files: _files, ...manifest } = pkg;
 delete manifest.private;
 manifest.scripts = { postinstall: 'node bin/postinstall.js' };
-manifest.files = ['bin', 'src', 'chunks', 'configs', 'LICENSE'];
+manifest.files = ['bin', 'src', 'chunks', 'configs', 'native', 'LICENSE'];
 writeFileSync(path.join(out, 'package.json'), `${JSON.stringify(manifest)}\n`);
 copyFileSync(path.join(root, 'LICENSE'), path.join(out, 'LICENSE'));
 chmodSync(path.join(out, 'bin/star-config.js'), 0o755);

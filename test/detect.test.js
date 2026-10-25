@@ -81,3 +81,11 @@ describe('detectStacks', () => {
     expect(s.cloudflare?.files).toEqual(['worker/wrangler.jsonc']);
   });
 });
+
+it('keeps native tooling-only npm manifests out of the Node application stack', () => {
+  const stacks = detect(['Cargo.toml', 'src/lib.rs'], {
+    dependencies: { '@susanbeasles/star-config': '0.2.0' },
+  });
+  expect(stacks.rust).toBe(true);
+  expect(stacks.node).toBeNull();
+});

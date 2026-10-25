@@ -11,7 +11,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: release
+  # Skipped reconciliation events must not replace a queued publishing run.
+  group: ${{ github.event_name == 'workflow_run' && (github.event.workflow_run.conclusion != 'success' || github.event.workflow_run.head_sha == github.sha) && 'release-noop' || 'release' }}
   cancel-in-progress: false
 
 jobs:
@@ -65,11 +66,18 @@ jobs:
           node-version: 24
           package-manager-cache: false
       - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: native-fs-macOS-*
+          path: build/native
+          merge-multiple: true
       - name: Stamp artifact version without modifying Git history
         env:
           VERSION: ${{ needs.plan.outputs.version }}
         run: npm version "$VERSION" --no-git-tag-version --ignore-scripts --allow-same-version
       - run: npm run build
+        env:
+          STAR_CONFIG_REQUIRE_NATIVE: "1"
       - run: npm run test:package
       - run: mkdir -p artifacts && npm pack ./build/package --ignore-scripts --pack-destination artifacts
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -111,6 +119,9 @@ jobs:
         env:
           VERSION: ${{ needs.plan.outputs.version }}
         run: npm version "$VERSION" --no-git-tag-version --ignore-scripts --allow-same-version
+      - name: Build the macOS filesystem companion
+        if: runner.os == 'macOS'
+        run: node scripts/prepare-native.mjs
       - run: node scripts/build-sea.mjs
       - name: Smoke test and compress
         shell: bash
@@ -120,15 +131,24 @@ jobs:
         run: |
           test "$(./dist/"$ASSET" --version)" = "$VERSION"
           gzip -9 -n -c "dist/$ASSET" > "dist/$ASSET.gz"
+          if [ "$RUNNER_OS" = macOS ]; then
+            for module in dist/managed-fs-*.node; do
+              gzip -9 -n -c "$module" > "$module.gz"
+            done
+          fi
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
           subject-path: |
             dist/${{ matrix.asset }}
             dist/${{ matrix.asset }}.gz
+            dist/managed-fs-*.node
+            dist/managed-fs-*.node.gz
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ${{ matrix.asset }}
-          path: dist/${{ matrix.asset }}.gz
+          path: |
+            dist/${{ matrix.asset }}.gz
+            dist/managed-fs-*.node.gz
           if-no-files-found: error
 
   publish:

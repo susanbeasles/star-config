@@ -49,7 +49,7 @@ it('rejects linked package manifests before calculating dependencies', () => {
 it('keeps ordinary context reads portable while managed setup reads fail closed', () => {
   const { root } = fixture();
   const platform = process.platform;
-  Object.defineProperty(process, 'platform', { value: 'darwin' });
+  Object.defineProperty(process, 'platform', { value: 'win32' });
   try {
     expect(readRepoConfig(root)).toEqual({});
     expect(() => readRepoConfig(root, true)).toThrow(/Linux/);
