@@ -10,6 +10,7 @@ import {
   readFileSync,
   writeFileSync,
   fchmodSync,
+  fsyncSync,
   renameSync,
   rmSync,
   unlinkSync,
@@ -210,7 +211,9 @@ export function writeManaged(root, rel, content, mode = 0o644) {
     );
     writeFileSync(fd, content);
     fchmodSync(fd, mode);
+    fsyncSync(fd);
     renameSync(temporary, parent.target);
+    fsyncSync(parent.fd);
   } finally {
     if (fd !== undefined) {
       closeSync(fd);
@@ -252,7 +255,7 @@ export function validatePackageInputs(root) {
     'setup.py',
     'setup.cfg',
   ]) {
-    readManaged(root, rel);
+    managedPath(root, rel);
   }
   managedDirectory(root, '.venv');
 }

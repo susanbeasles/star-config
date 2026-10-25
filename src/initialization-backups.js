@@ -224,18 +224,30 @@ function restorePackage(current, backup, force) {
   return Buffer.from(`${JSON.stringify(pkg, null, 2)}\n`);
 }
 
-/** @param {string} root @param {string | undefined} requested */
-function activeBackup(root, requested) {
+/** @param {string} root @param {string} id @param {string[]} ids */
+function loadBackup(root, id, ids) {
+  if (!ID.test(id) || !ids.includes(id)) {
+    throw new Error('Unknown initialization backup');
+  }
+  const text = readManaged(root, `${DIRECTORY}/${id}.json`);
+  const candidate = validate(text === null ? null : JSON.parse(text));
+  if (candidate.id !== id) {
+    throw new Error('Initialization backup identity mismatch');
+  }
+  return candidate;
+}
+
+/** @param {string} root @param {string | undefined} requested @param {boolean} force */
+function activeBackup(root, requested, force) {
   const ids = index(root);
   let backup;
   for (const id of requested ? [requested] : [...ids].reverse()) {
-    if (!ID.test(id) || !ids.includes(id)) {
-      throw new Error('Unknown initialization backup');
-    }
-    const text = readManaged(root, `${DIRECTORY}/${id}.json`);
-    const candidate = validate(text === null ? null : JSON.parse(text));
-    if (candidate.id !== id) {
-      throw new Error('Initialization backup identity mismatch');
+    const candidate = loadBackup(root, id, ids);
+    if (candidate.status === 'pending') {
+      if (force) {
+        return candidate;
+      }
+      throw new Error(`Backup ${id} records an interrupted operation; use restore ${id} --force`);
     }
     if (candidate.status === 'complete' && (requested || candidate.kind === 'initialize')) {
       backup = candidate;
@@ -252,7 +264,7 @@ function activeBackup(root, requested) {
  * @param {string} root @param {string | undefined} requested @param {{force?: boolean}} options
  */
 export function restoreInitialization(root, requested, { force = false } = {}) {
-  const backup = activeBackup(root, requested);
+  const backup = activeBackup(root, requested, force);
   const changes = backup.files.filter((file) => file.changed);
   const replacements = changes.map((file) => {
     const current = readManagedState(root, file.path);

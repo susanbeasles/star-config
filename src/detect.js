@@ -59,6 +59,27 @@ function readJson(root, rel, managed) {
   }
 }
 
+/** A native project can use npm solely to install its shared tooling.
+ * @param {string[]} files @param {Record<string, unknown>} dependencies
+ */
+function nativeToolManifest(files, dependencies) {
+  const native = files.some((file) =>
+    /(?:^|\/)(?:Cargo\.toml|pyproject\.toml|Package\.swift)$|\.(?:py|rs|swift)$/.test(file),
+  );
+  const javascript = files.some(
+    (file) =>
+      /\.[cm]?[jt]sx?$/.test(file) &&
+      !/(?:^|\/)(?:eslint|prettier|vitest|vite|lint-staged|playwright)\.config\./.test(file),
+  );
+  return (
+    native &&
+    !javascript &&
+    Object.keys(dependencies).every((name) =>
+      ['@susanbeasles/star-config', 'star-config'].includes(name),
+    )
+  );
+}
+
 /**
  * @param {string} root
  * @param {string[]} files
@@ -74,6 +95,9 @@ function detectNode(root, files, managed) {
   }
   const pkg = readJson(root, 'package.json', managed) ?? {};
   const deps = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies };
+  if (nativeToolManifest(files, deps)) {
+    return null;
+  }
   const has = (/** @type {string} */ name) => Object.hasOwn(deps, name);
   const lock = (/** @type {string} */ name) =>
     files.includes(name) || existsSync(path.join(root, name));

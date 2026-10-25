@@ -39,6 +39,9 @@ export async function initialize(root, { requireDependency = true, packageInstal
     return false;
   }
   const existingFiles = projectFiles(root);
+  if (packageInstall && !existingFiles.includes('package.json')) {
+    existingFiles.push('package.json');
+  }
   const load = (files = existingFiles) => {
     const stacks = detectStacks(root, files, true);
     const config = JSON.parse(readManaged(root, '.star/config.json') ?? '{}');

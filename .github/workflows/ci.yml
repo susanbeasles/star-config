@@ -87,8 +87,6 @@ jobs:
         os: [macos-15, macos-15-intel]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
-    env:
-      TMPDIR: ${{ runner.temp }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -98,6 +96,7 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
+      - run: echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
       - run: npm ci --ignore-scripts
       - run: node scripts/prepare-native.mjs
       - name: Qualify native filesystem and reversible initialization
