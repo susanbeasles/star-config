@@ -1,5 +1,8 @@
 /* Descriptor-relative filesystem operations for platforms without /proc/self/fd. */
 #define _POSIX_C_SOURCE 200809L
+#ifdef __APPLE__
+#define _DARWIN_C_SOURCE
+#endif
 #include <node_api.h>
 #include <sys/stat.h>
 #include <fcntl.h>

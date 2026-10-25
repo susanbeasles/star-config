@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync, statSync, symlinkSync, mkdirSy
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { initialize } from '../src/initialize.js';
-import { restoreInitialization } from '../src/initialization-backups.js';
+import { initializeTransaction, restoreInitialization } from '../src/initialization-backups.js';
 import { projectFiles } from '../src/project-files.js';
 import { makeRepo } from './helpers.js';
 
@@ -121,6 +121,53 @@ describe('reversible initialization', () => {
     await expect(initialize(repo.root)).rejects.toThrow(/Unsafe/);
     expect(readFileSync(path.join(repo.root, 'package.json'), 'utf8')).toBe(original);
     expect(existsSync(path.join(repo.root, 'AGENTS.md'))).toBe(false);
+  });
+
+  it('rolls back actual writes without reverting untouched planned targets', async () => {
+    project();
+    repo.put('.gitignore', 'original\n');
+    await expect(
+      initializeTransaction(repo.root, {
+        targets: ['AGENTS.md', '.gitignore'],
+        snapshots: ['AGENTS.md', '.gitignore'],
+        packageBefore: null,
+        packageAfter: null,
+        changed: true,
+        apply: (write) => {
+          write('AGENTS.md', 'generated\n');
+          repo.put('.gitignore', 'concurrent edit\n');
+          throw new Error('synthetic interrupted install');
+        },
+      }),
+    ).rejects.toThrow('synthetic interrupted install');
+    expect(existsSync(path.join(repo.root, 'AGENTS.md'))).toBe(false);
+    expect(readFileSync(path.join(repo.root, '.gitignore'), 'utf8')).toBe('concurrent edit\n');
+    expect(backup().status).toBe('rolled-back');
+    expect(backup().files.find((file) => file.path === '.gitignore').changed).toBe(false);
+  });
+
+  it('refuses a concurrent change before writing and preserves later edits during rollback', async () => {
+    project();
+    repo.put('.gitignore', 'original\n');
+    await expect(
+      initializeTransaction(repo.root, {
+        targets: ['AGENTS.md', '.gitignore'],
+        snapshots: ['AGENTS.md', '.gitignore'],
+        packageBefore: null,
+        packageAfter: null,
+        changed: true,
+        apply: (write) => {
+          write('AGENTS.md', 'generated\n');
+          repo.put('AGENTS.md', 'subsequent edit\n');
+          repo.put('.gitignore', 'concurrent edit\n');
+          write('.gitignore', 'replacement\n');
+        },
+      }),
+    ).rejects.toThrow(/concurrent edit/);
+    expect(readFileSync(path.join(repo.root, 'AGENTS.md'), 'utf8')).toBe('subsequent edit\n');
+    expect(readFileSync(path.join(repo.root, '.gitignore'), 'utf8')).toBe('concurrent edit\n');
+    expect(backup().status).toBe('pending');
+    expect(() => restoreInitialization(repo.root, undefined, {})).toThrow(/interrupted/);
   });
 
   it('rejects a backup entry that attempts to restore outside the project', async () => {

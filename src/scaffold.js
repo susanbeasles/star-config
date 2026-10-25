@@ -26,6 +26,7 @@ import { dim, green, log, yellow } from './runner.js';
 
 /** @typedef {import('./templates/governance.js').Ctx} Ctx */
 /** @typedef {{ content: string, mode?: number }} FileSpec */
+/** @typedef {(rel: string, content: string | Uint8Array | null, mode?: number) => void} ManagedWriter */
 
 const MANIFEST = '.star/manifest.json';
 const RETIRED = ['sonar-project.properties'];
@@ -144,9 +145,9 @@ function readManifest(root) {
 /** @param {string} root @param {Record<string, FileSpec>} files
  * @param {{ files: Record<string, string> }} manifest
  * @param {ReturnType<typeof apply>} result
- * @param {{force: boolean, dryRun: boolean}} options
+ * @param {{force: boolean, dryRun: boolean, writer: ManagedWriter}} options
  */
-function retireManaged(root, files, manifest, result, { force, dryRun }) {
+function retireManaged(root, files, manifest, result, { force, dryRun, writer }) {
   for (const rel of RETIRED) {
     if (!Object.hasOwn(manifest.files, rel) || Object.hasOwn(files, rel)) {
       continue;
@@ -159,7 +160,7 @@ function retireManaged(root, files, manifest, result, { force, dryRun }) {
     if (current !== null) {
       result.removed.push(rel);
       if (!dryRun) {
-        removeManaged(root, rel);
+        writer(rel, null);
       }
     }
     delete manifest.files[rel];
@@ -169,10 +170,25 @@ function retireManaged(root, files, manifest, result, { force, dryRun }) {
 /**
  * @param {string} root
  * @param {Record<string, FileSpec>} files
- * @param {{ force?: boolean, version: string, dryRun?: boolean }} opts
+ * @param {{ force?: boolean, version: string, dryRun?: boolean, writer?: ManagedWriter }} opts
  * @returns {{ written: string[], updated: string[], removed: string[], kept: string[], unchanged: string[] }}
  */
-export function apply(root, files, { force = false, version, dryRun = false }) {
+export function apply(
+  root,
+  files,
+  {
+    force = false,
+    version,
+    dryRun = false,
+    writer = (rel, content, mode) => {
+      if (content === null) {
+        removeManaged(root, rel);
+      } else {
+        writeManaged(root, rel, content, mode);
+      }
+    },
+  },
+) {
   for (const rel of [...Object.keys(files), MANIFEST]) {
     managedPath(root, rel);
   }
@@ -184,24 +200,20 @@ export function apply(root, files, { force = false, version, dryRun = false }) {
     kept: /** @type {string[]} */ ([]),
     unchanged: /** @type {string[]} */ ([]),
   };
-  retireManaged(root, files, manifest, result, { force, dryRun });
+  retireManaged(root, files, manifest, result, { force, dryRun, writer });
   for (const [rel, spec] of Object.entries(files)) {
     const action = decide(root, rel, spec, manifest.files[rel], force);
     if (action !== 'kept') {
       manifest.files[rel] = sha(spec.content);
     }
     if ((action === 'written' || action === 'updated') && !dryRun) {
-      writeManaged(root, rel, spec.content, spec.mode);
+      writer(rel, spec.content, spec.mode);
     }
     result[action].push(rel);
   }
   if (!dryRun) {
     manifest.version = version;
-    writeManaged(
-      root,
-      MANIFEST,
-      `${JSON.stringify({ version, files: sortKeys(manifest.files) }, null, 2)}\n`,
-    );
+    writer(MANIFEST, `${JSON.stringify({ version, files: sortKeys(manifest.files) }, null, 2)}\n`);
   }
   return result;
 }

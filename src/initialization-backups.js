@@ -87,13 +87,76 @@ function restoreBytes(root, file) {
   }
 }
 
+/** @param {string} root @param {Snapshot} file */
+function currentHash(root, file) {
+  const state = readManagedState(root, file.path);
+  return state === null ? null : digest(state.bytes);
+}
+
+/** Only unwind writes this transaction actually attempted, preserving subsequent edits.
+ * @param {string} root @param {Backup} backup
+ */
+function rollback(root, backup) {
+  let complete = true;
+  for (const file of [...backup.files].reverse().filter((entry) => entry.changed)) {
+    try {
+      const hash = currentHash(root, file);
+      const before = file.before === null ? null : digest(Buffer.from(file.before, 'base64'));
+      if (hash === file.after) {
+        restoreBytes(root, file);
+      } else if (hash !== before) {
+        complete = false;
+      }
+    } catch {
+      complete = false;
+    }
+  }
+  backup.status = complete ? 'rolled-back' : 'pending';
+  save(root, backup);
+}
+
+/** @param {string} root @param {Backup} backup
+ * @returns {import('./scaffold.js').ManagedWriter}
+ */
+function transactionWriter(root, backup) {
+  return (rel, content, mode) => {
+    const file = backup.files.find((entry) => entry.path === rel);
+    if (!file) {
+      throw new Error(`Initialization attempted an unplanned write: ${rel}`);
+    }
+    const current = readManagedState(root, rel);
+    const hash = current === null ? null : digest(current.bytes);
+    const before = file.before === null ? null : digest(Buffer.from(file.before, 'base64'));
+    if (hash !== (file.changed ? file.after : before) || (current && current.mode !== file.mode)) {
+      throw new Error(`Initialization would overwrite a concurrent edit: ${rel}`);
+    }
+    const after = content === null ? null : digest(Buffer.from(content));
+    if (hash === after) {
+      return;
+    }
+    file.changed = true;
+    file.after = after;
+    // Persist intent before rename, so an interrupted install remains recoverable.
+    save(root, backup);
+    if (content === null) {
+      removeManaged(root, rel);
+    } else {
+      writeManaged(root, rel, content, mode);
+    }
+  };
+}
+
 /** Run one backed-up initialization transaction. Backups are local data, never executable inputs.
  * @param {string} root
- * @param {{targets: string[], snapshots: string[], packageBefore: string|null, packageAfter: string|null, changed: boolean, apply: () => void}} operation
+ * @param {{targets: string[], snapshots: string[], packageBefore: string|null, packageAfter: string|null, changed: boolean, apply: (writer: import('./scaffold.js').ManagedWriter) => void}} operation
  */
 export async function initializeTransaction(root, operation) {
   if (!operation.changed) {
-    operation.apply();
+    operation.apply((rel, content) => {
+      if (readManaged(root, rel) !== content) {
+        throw new Error(`Initialization changed after planning: ${rel}`);
+      }
+    });
     return;
   }
   for (const file of [
@@ -112,28 +175,20 @@ export async function initializeTransaction(root, operation) {
     version: version(),
     kind: 'initialize',
     status: 'pending',
-    files: snapshot(root, operation.snapshots, operation.targets),
+    files: snapshot(root, operation.snapshots, []),
     packageBefore: operation.packageBefore,
     packageAfter: operation.packageAfter,
   };
   register(root, backup);
   try {
-    operation.apply();
-    for (const file of backup.files) {
-      const current = readManagedState(root, file.path);
-      file.after = current === null ? null : digest(current.bytes);
-    }
+    operation.apply(transactionWriter(root, backup));
     backup.status = 'complete';
     save(root, backup);
     process.stderr.write(
-      `star-config backup: ${DIRECTORY}/${backup.id}.json (restore: star-config restore ${backup.id})\n`,
+      `star-config backup: ${DIRECTORY}/${backup.id}.json (restore: npx --no-install star-config restore ${backup.id})\n`,
     );
   } catch (error) {
-    for (const file of [...backup.files].reverse().filter((entry) => entry.changed)) {
-      restoreBytes(root, file);
-    }
-    backup.status = 'rolled-back';
-    save(root, backup);
+    rollback(root, backup);
     throw error;
   }
 }
@@ -288,23 +343,16 @@ export function restoreInitialization(root, requested, { force = false } = {}) {
     files: snapshot(
       root,
       changes.map((file) => file.path),
-      changes.map((file) => file.path),
+      [],
     ),
     packageBefore: null,
     packageAfter: null,
   };
   register(root, undo);
   try {
+    const write = transactionWriter(root, undo);
     for (const { file, bytes } of replacements.reverse()) {
-      if (bytes === null) {
-        removeManaged(root, file.path);
-      } else {
-        writeManaged(root, file.path, bytes, file.mode);
-      }
-    }
-    for (const file of undo.files) {
-      const current = readManagedState(root, file.path);
-      file.after = current === null ? null : digest(current.bytes);
+      write(file.path, bytes, file.mode);
     }
     undo.status = 'complete';
     save(root, undo);
@@ -314,11 +362,7 @@ export function restoreInitialization(root, requested, { force = false } = {}) {
       `Restored initialization ${backup.id}; backup of the restored state: ${undo.id}\n`,
     );
   } catch (error) {
-    for (const file of [...undo.files].reverse()) {
-      restoreBytes(root, file);
-    }
-    undo.status = 'rolled-back';
-    save(root, undo);
+    rollback(root, undo);
     throw error;
   }
   return 0;

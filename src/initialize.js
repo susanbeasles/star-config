@@ -5,7 +5,7 @@ import { NPM_NAME } from './constants.js';
 import { detectStacks } from './detect.js';
 import { formatGenerated } from './format.js';
 import { projectFiles } from './project-files.js';
-import { readManaged, writeManaged } from './managed-files.js';
+import { readManaged } from './managed-files.js';
 import { apply, report } from './scaffold.js';
 import { preserveConfiguredTools, configurationFile } from './configuration-files.js';
 import { initializeTransaction } from './initialization-backups.js';
@@ -83,12 +83,12 @@ export async function initialize(root, { requireDependency = true, packageInstal
       preview.updated.length ||
       preview.removed.length ||
       updated !== contents ||
-      readManaged(root, '.star/manifest.json') === null,
+      JSON.parse(readManaged(root, '.star/manifest.json') ?? '{}').version !== version(),
     ),
-    apply: () => {
-      report(apply(root, files, { version: version() }));
+    apply: (writer) => {
+      report(apply(root, files, { version: version(), writer }));
       if (updated !== null && updated !== contents) {
-        writeManaged(root, 'package.json', updated);
+        writer('package.json', updated);
       }
     },
   });
