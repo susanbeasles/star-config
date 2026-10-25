@@ -287,17 +287,4 @@ describe('Dependabot change boundary', () => {
       ]),
     ).toBe(true);
   });
-  it('admits only same-major database image updates', () => {
-    const file = { filename: 'configs/sonarqube-compose.yml', status: 'modified' };
-    expect(
-      eligibleFiles([
-        { ...file, patch: '-    image: postgres:17.6-alpine\n+    image: postgres:17.7-alpine' },
-      ]),
-    ).toBe(true);
-    expect(
-      eligibleFiles([
-        { ...file, patch: '-    image: postgres:17-alpine\n+    image: postgres:18-alpine' },
-      ]),
-    ).toBe(false);
-  });
 });

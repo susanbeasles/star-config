@@ -12,6 +12,7 @@ import {
   fchmodSync,
   renameSync,
   rmSync,
+  unlinkSync,
 } from 'node:fs';
 import path from 'node:path';
 
@@ -206,4 +207,17 @@ export function validatePackageInputs(root) {
     readManaged(root, rel);
   }
   managedDirectory(root, '.venv');
+}
+
+/** Remove a retired managed file without following a link or escaping its parent.
+ * The caller verifies its recorded content hash before removal in an exclusively controlled checkout.
+ * @param {string} root @param {string} rel
+ */
+export function removeManaged(root, rel) {
+  const parent = openParent(root, rel, false);
+  try {
+    unlinkSync(parent.target);
+  } finally {
+    closeSync(parent.fd);
+  }
 }

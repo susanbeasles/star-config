@@ -15,7 +15,6 @@ import {
   prePush,
   run,
   setup,
-  sonar,
   sync,
   test,
 } from '../src/commands.js';
@@ -39,7 +38,6 @@ Daily
   check [--coverage] [--e2e]    lint + test + audit (what CI runs)
 
 Extras
-  sonar up|scan|status|down [--purge]   Local SonarQube in Docker (127.0.0.1:9000)
 
 Internal (hooks)
   pre-commit · pre-push · agent-hook · run <lang> [--check] <files…>
@@ -55,7 +53,6 @@ const { values, positionals } = parseArgs({
     e2e: { type: 'boolean', default: false },
     coverage: { type: 'boolean', default: false },
     docker: { type: 'boolean', default: false },
-    purge: { type: 'boolean', default: false },
     'no-install': { type: 'boolean', default: false },
     'no-scaffold': { type: 'boolean', default: false },
     owners: { type: 'string' },
@@ -116,8 +113,6 @@ async function main() {
       return audit(ctx());
     case 'check':
       return check(ctx(), { coverage: values.coverage, e2e: values.e2e });
-    case 'sonar':
-      return sonar(rest[0] ?? '', { cwd, purge: values.purge });
     case 'pre-commit':
       return preCommit(ctx());
     case 'pre-push':

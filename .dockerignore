@@ -1,0 +1,17 @@
+**
+!package.json
+!package-lock.json
+!mise.toml
+!mise.lock
+!.mise
+!.mise/locks
+!.mise/locks/**
+!bin
+!bin/**
+!src
+!src/**
+!configs
+!configs/**
+!runtime
+!runtime/Dockerfile
+!runtime/requirements-test.txt

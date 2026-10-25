@@ -205,9 +205,6 @@ export function vscodeSettings(ctx) {
   if (s.shell) {
     settings['[shellscript]'] = { 'editor.defaultFormatter': 'mkhl.shfmt' };
   }
-  settings['sonarlint.connectedMode.connections.sonarqube'] = [
-    { serverUrl: 'http://127.0.0.1:9000', connectionId: 'local' },
-  ];
   return `${JSON.stringify(settings, null, 2)}\n`;
 }
 
@@ -328,24 +325,7 @@ jobs:
         with:
           fetch-depth: 0 # gitleaks scans full history
           persist-credentials: false
-      - uses: jdx/mise-action@v3 # TODO pin to SHA — installs mise.toml tools (checksums from mise.lock)
+      - uses: jdx/mise-action@82a612c5ab8bcda7cc5db6b7e81a8e7584c3dc6e # v5.2.3
 ${nodeSteps}${pythonSteps}      - run: .star/run check --coverage
 ${e2e}`;
-}
-
-/** @param {Ctx} ctx */
-export function sonarProperties(ctx) {
-  const sources = [
-    ctx.stacks.node && 'src',
-    ctx.stacks.python && '.',
-    ctx.stacks.rust && 'src',
-  ].filter(Boolean);
-  return `# Managed by star-config. Used by \`star-config sonar scan\` (local SonarQube in Docker).
-sonar.projectKey=${ctx.repoName.replaceAll(/[^A-Za-z0-9_.:-]/g, '-')}
-sonar.projectName=${ctx.repoName}
-sonar.sources=${[...new Set(sources.length ? sources : ['.'])].join(',')}
-sonar.exclusions=**/node_modules/**,**/.venv/**,**/target/**,**/dist/**,**/build/**,**/coverage/**
-sonar.tests=.
-sonar.test.inclusions=**/*.test.*,**/*.spec.*,**/test_*.py,**/tests/**,**/*.bats
-${ctx.stacks.node ? 'sonar.javascript.lcov.reportPaths=coverage/lcov.info\n' : ''}${ctx.stacks.python ? 'sonar.python.coverage.reportPaths=coverage.xml\n' : ''}`;
 }

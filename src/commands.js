@@ -22,7 +22,6 @@ import {
 import { formatGenerated } from './format.js';
 import { converge, report } from './scaffold.js';
 import { installHooks, setup as runSetup } from './setup.js';
-import { sonar } from './sonar.js';
 import { auditTasks, buildTasks, testTasks } from './tasks.js';
 import { miseToolsFor } from './templates/devenv.js';
 import { MISE_TOOLS } from './tools.js';
@@ -389,7 +388,7 @@ export async function sync(ctx, { force = false, dryRun = false }) {
     dryRun,
   });
   report(r);
-  if (dryRun && (r.written.length || r.updated.length)) {
+  if (dryRun && (r.written.length || r.updated.length || r.removed.length)) {
     log(yellow('Managed files are out of date. Run `star-config sync`.'));
     return 1;
   }
@@ -414,4 +413,4 @@ export async function setup(cwd, opts) {
   return runSetup(ctx, opts);
 }
 
-export { installHooks, sonar };
+export { installHooks };

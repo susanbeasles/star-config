@@ -7,7 +7,7 @@
  *   - edited by a human  → kept (reported), unless --force
  */
 import { createHash } from 'node:crypto';
-import { managedPath, readManaged, writeManaged } from './managed-files.js';
+import { managedPath, readManaged, removeManaged, writeManaged } from './managed-files.js';
 import { repositoryFiles } from './templates/repository.js';
 import { lintConfigFiles, testConfigFiles } from './templates/configs.js';
 import {
@@ -17,7 +17,6 @@ import {
   launcher,
   miseToml,
   postCreateSh,
-  sonarProperties,
   vscodeExtensions,
   vscodeSettings,
 } from './templates/devenv.js';
@@ -29,6 +28,7 @@ import { dim, green, log, yellow } from './runner.js';
 /** @typedef {{ content: string, mode?: number }} FileSpec */
 
 const MANIFEST = '.star/manifest.json';
+const RETIRED = ['sonar-project.properties'];
 const EXEC = 0o755;
 
 const sha = (/** @type {string} */ s) => createHash('sha256').update(s).digest('hex');
@@ -55,7 +55,6 @@ export function planRaw(ctx) {
       content: `${JSON.stringify({ recommendations: vscodeExtensions(ctx) }, null, 2)}\n`,
     },
     '.vscode/settings.json': { content: vscodeSettings(ctx) },
-    'sonar-project.properties': { content: sonarProperties(ctx) },
   };
   for (const [rel, content] of Object.entries({
     ...repositoryFiles(ctx),
@@ -113,18 +112,19 @@ export async function plan(ctx) {
  */
 export async function converge(root, load, opts, render = plan) {
   /** @type {ReturnType<typeof apply>} */
-  const total = { written: [], updated: [], kept: [], unchanged: [] };
+  const total = { written: [], updated: [], removed: [], kept: [], unchanged: [] };
   for (let round = 0; round < 3; round++) {
     const r = apply(root, await render(load()), opts);
     total.written.push(...r.written.filter((f) => !total.written.includes(f)));
     total.updated.push(
       ...r.updated.filter((f) => !total.updated.includes(f) && !total.written.includes(f)),
     );
+    total.removed.push(...r.removed.filter((f) => !total.removed.includes(f)));
     total.kept = r.kept;
     total.unchanged = r.unchanged.filter(
       (f) => !total.written.includes(f) && !total.updated.includes(f),
     );
-    if (opts.dryRun || (!r.written.length && !r.updated.length)) {
+    if (opts.dryRun || (!r.written.length && !r.updated.length && !r.removed.length)) {
       break;
     }
   }
@@ -141,11 +141,36 @@ function readManifest(root) {
   }
 }
 
+/** @param {string} root @param {Record<string, FileSpec>} files
+ * @param {{ files: Record<string, string> }} manifest
+ * @param {ReturnType<typeof apply>} result
+ * @param {{force: boolean, dryRun: boolean}} options
+ */
+function retireManaged(root, files, manifest, result, { force, dryRun }) {
+  for (const rel of RETIRED) {
+    if (!Object.hasOwn(manifest.files, rel) || Object.hasOwn(files, rel)) {
+      continue;
+    }
+    const current = readManaged(root, rel);
+    if (current !== null && !force && sha(current) !== manifest.files[rel]) {
+      result.kept.push(rel);
+      continue;
+    }
+    if (current !== null) {
+      result.removed.push(rel);
+      if (!dryRun) {
+        removeManaged(root, rel);
+      }
+    }
+    delete manifest.files[rel];
+  }
+}
+
 /**
  * @param {string} root
  * @param {Record<string, FileSpec>} files
  * @param {{ force?: boolean, version: string, dryRun?: boolean }} opts
- * @returns {{ written: string[], updated: string[], kept: string[], unchanged: string[] }}
+ * @returns {{ written: string[], updated: string[], removed: string[], kept: string[], unchanged: string[] }}
  */
 export function apply(root, files, { force = false, version, dryRun = false }) {
   for (const rel of [...Object.keys(files), MANIFEST]) {
@@ -155,9 +180,11 @@ export function apply(root, files, { force = false, version, dryRun = false }) {
   const result = {
     written: /** @type {string[]} */ ([]),
     updated: /** @type {string[]} */ ([]),
+    removed: /** @type {string[]} */ ([]),
     kept: /** @type {string[]} */ ([]),
     unchanged: /** @type {string[]} */ ([]),
   };
+  retireManaged(root, files, manifest, result, { force, dryRun });
   for (const [rel, spec] of Object.entries(files)) {
     const action = decide(root, rel, spec, manifest.files[rel], force);
     if (action !== 'kept') {
@@ -190,6 +217,9 @@ export function report(r) {
   }
   for (const f of r.updated) {
     log(`  ${green('update')} ${f}`);
+  }
+  for (const f of r.removed) {
+    log(`  ${green('remove')} ${f}`);
   }
   for (const f of r.kept) {
     log(`  ${yellow('kept  ')} ${f} ${dim('(edited locally — use --force to replace)')}`);

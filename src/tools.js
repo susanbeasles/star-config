@@ -57,8 +57,6 @@ export const NPM_DEV = /** @type {const} */ ({
   esbuild: '0.28.2',
   // renovate: datasource=npm depName=cdk-nag
   'cdk-nag': '3.0.2',
-  // renovate: datasource=npm depName=@sonar/scan
-  '@sonar/scan': '5.0.2',
 });
 
 /** Python dev dependencies `setup` adds to the uv-managed venv. */

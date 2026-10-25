@@ -7,3 +7,8 @@ dist/
 build/
 artifacts/
 release-notes.md
+
+__pycache__/
+*.pyc
+runtime-image.id
+runtime-bundle/

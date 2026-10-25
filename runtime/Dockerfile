@@ -1,0 +1,37 @@
+FROM node:24-bookworm@sha256:6449e19d8184d84062525b6a7524def03146c2cb04a7f08b076680d0e8e4240a
+ARG TARGETARCH
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+ENV MISE_DATA_DIR=/opt/mise MISE_CONFIG_DIR=/opt/mise-config MISE_CACHE_DIR=/tmp/mise-cache \
+    MISE_TRUSTED_CONFIG_PATHS=/work PATH=/opt/mise/shims:/usr/local/bin:/usr/bin:/bin
+WORKDIR /opt/star-config
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund && npm cache clean --force
+COPY mise.toml mise.lock ./
+COPY .mise/locks ./.mise/locks
+COPY runtime/requirements-test.txt ./runtime/requirements-test.txt
+# SHELL enables Bash pipefail; this step also enables errexit and nounset.
+RUN set -eu; \
+    case "$TARGETARCH" in \
+      amd64) platform=x64; digest=fe6dd17e68e09682b31d2e7bb7bb755d22636ac1af5d94621e300f2ca9e9fe8a ;; \
+      arm64) platform=arm64; digest=e90904144ba4377c5fbe385f429830282c68f3b4f9c690bf6c5a2ae9b74a809b ;; \
+      *) exit 1 ;; \
+    esac; \
+    curl --fail --location --proto '=https' --proto-redir '=https' \
+      "https://github.com/jdx/mise/releases/download/v2026.10.17/mise-v2026.10.17-linux-$platform" \
+      --output /usr/local/bin/mise; \
+    printf '%s  /usr/local/bin/mise\n' "$digest" | sha256sum --check --strict -; \
+    chmod 0755 /usr/local/bin/mise; \
+    mkdir -p /opt/mise-config; \
+    cp mise.toml /opt/mise-config/config.toml; \
+    cp mise.lock /opt/mise-config/config.lock; \
+    cp -R .mise /opt/mise-config/.mise; \
+    mise trust /opt/star-config/mise.toml; \
+    mise install --locked --yes; \
+    uv venv --no-python-downloads --python "$(mise where python)/bin/python3" /opt/star-config/.venv; \
+    uv pip install --python /opt/star-config/.venv/bin/python --require-hashes -r runtime/requirements-test.txt
+COPY bin ./bin
+COPY src ./src
+COPY configs ./configs
+RUN ln -s /opt/star-config/bin/star-config.js /usr/local/bin/star-config
+USER 65532:65532
+WORKDIR /work

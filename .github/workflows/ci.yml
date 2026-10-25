@@ -40,8 +40,9 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
+          check-latest: true
           cache: npm
-      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      - uses: jdx/mise-action@82a612c5ab8bcda7cc5db6b7e81a8e7584c3dc6e # v5.2.3
       - run: npm ci --ignore-scripts
       - name: Install polyglot test prerequisites
         run: |
@@ -49,6 +50,8 @@ jobs:
           uv pip install --python .venv/bin/python pytest==9.1.1
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - run: npm run typecheck
+      - name: Runtime unit contracts
+        run: python3 -I -m pytest -q runtime/test_runtime.py
       - run: npm run test:coverage
       - run: npm run build
       - run: npm run test:package

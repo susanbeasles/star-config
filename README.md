@@ -103,3 +103,10 @@ queries. A configuration file alone does not enable code scanning: an existing
 CodeQL workflow must use its `config-file` input, or supported GitHub default
 setup must reference it through the repository property. No GitHub account
 settings or other repositories are changed by installing this package here.
+
+## Protected runtime
+
+The protected controller and isolated checks image are
+qualified by `.github/workflows/runtime.yml`. Review [runtime/README.md](runtime/README.md)
+for explicit administrator provisioning and the host isolation requirements.
+The npm tooling package does not provision a privileged host runtime.

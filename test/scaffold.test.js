@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -114,6 +114,9 @@ describe('plan', () => {
       ]),
     );
     expect(dc.customizations.vscode.extensions).toContain('SonarSource.sonarlint-vscode');
+    expect(files['sonar-project.properties']).toBeUndefined();
+    const settings = JSON.parse(files['.vscode/settings.json'].content);
+    expect(settings).not.toHaveProperty('sonarlint.connectedMode.connections.sonarqube');
   });
 });
 
@@ -152,5 +155,40 @@ describe('apply (manifest-aware)', () => {
     const files = await plan(ctx);
     expect(files['.star/run'].mode).toBe(0o755);
     expect(files['.husky/pre-commit'].mode).toBe(0o755);
+  });
+});
+
+describe('retired managed configuration', () => {
+  it('removes an unchanged generated scan config and its manifest entry on upgrade', () => {
+    repo = makeRepo();
+    apply(
+      repo.root,
+      { 'sonar-project.properties': { content: 'legacy generated settings\n' } },
+      { version: '1' },
+    );
+    const preview = apply(repo.root, {}, { version: '2', dryRun: true });
+    expect(preview.removed).toEqual(['sonar-project.properties']);
+    expect(existsSync(path.join(repo.root, 'sonar-project.properties'))).toBe(true);
+    const result = apply(repo.root, {}, { version: '2' });
+    expect(result.removed).toEqual(['sonar-project.properties']);
+    expect(existsSync(path.join(repo.root, 'sonar-project.properties'))).toBe(false);
+    expect(
+      JSON.parse(readFileSync(path.join(repo.root, '.star/manifest.json'), 'utf8')).files,
+    ).not.toHaveProperty('sonar-project.properties');
+  });
+  it('preserves edited and untracked user configurations', () => {
+    repo = makeRepo();
+    repo.put('sonar-project.properties', 'untracked user settings\n');
+    expect(apply(repo.root, {}, { version: '1' }).removed).toEqual([]);
+    apply(
+      repo.root,
+      { 'sonar-project.properties': { content: 'generated\n' } },
+      { version: '1', force: true },
+    );
+    repo.put('sonar-project.properties', 'edited settings\n');
+    expect(apply(repo.root, {}, { version: '2' }).kept).toEqual(['sonar-project.properties']);
+    expect(readFileSync(path.join(repo.root, 'sonar-project.properties'), 'utf8')).toBe(
+      'edited settings\n',
+    );
   });
 });

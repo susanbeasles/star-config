@@ -38,7 +38,7 @@ Only the latest release on the default branch receives security fixes.
 |---|---|---|
 | Secret scanning | Gitleaks (redacted output) | pre-commit, CI |
 | Dependency vulnerabilities | Trivy${ctx.stacks.node ? ', npm audit' : ''}${ctx.stacks.python ? ', pip-audit' : ''}${ctx.stacks.rust ? ', cargo-deny' : ''} | CI, Dependabot |
-| Static analysis (SAST) | Semgrep, ${ctx.stacks.node ? 'eslint-plugin-sonarjs, ' : ''}SonarQube | CI, IDE |
+| Static analysis (SAST) | Semgrep${ctx.stacks.node ? ', eslint-plugin-sonarjs' : ''} | CI, IDE |
 | IaC misconfiguration | Trivy${ctx.stacks.node?.cdk ? ', cdk-nag (HIPAA + AWS Solutions packs)' : ''}${ctx.stacks.terraform ? ', Checkov' : ''}${ctx.stacks.cloudflare ? ', wrangler-nag' : ''} | CI |
 | Dependency updates | Dependabot with a 7-day cooldown | weekly |
 

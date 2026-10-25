@@ -40,11 +40,5 @@
   },
   "[shellscript]": {
     "editor.defaultFormatter": "mkhl.shfmt"
-  },
-  "sonarlint.connectedMode.connections.sonarqube": [
-    {
-      "serverUrl": "http://127.0.0.1:9000",
-      "connectionId": "local"
-    }
-  ]
+  }
 }

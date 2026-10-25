@@ -85,7 +85,6 @@
     "gitleaks",
     "trivy",
     "semgrep",
-    "sonarqube",
     "cdk-nag",
     "husky",
     "lint-staged",
