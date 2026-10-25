@@ -11,7 +11,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: release
+  # Skipped reconciliation events must not replace a queued publishing run.
+  group: ${{ github.event_name == 'workflow_run' && (github.event.workflow_run.conclusion != 'success' || github.event.workflow_run.head_sha == github.sha) && 'release-noop' || 'release' }}
   cancel-in-progress: false
 
 jobs:

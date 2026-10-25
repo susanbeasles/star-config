@@ -137,7 +137,7 @@ if [ "$os" = darwin ]; then
     [ -f "$DIR/$module" ] && [ ! -L "$DIR/$module" ] || die "unsafe filesystem companion target"
   fi
   mkdir -p "$DIR"
-  gzip -dc "${tmp}/${module_asset}" > "${tmp}/${module}"
+  gzip -dc "${tmp}/${module_asset}" >"${tmp}/${module}"
   mv "${tmp}/${module}" "$DIR/$module"
   chmod 0644 "$DIR/$module"
 fi
