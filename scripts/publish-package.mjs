@@ -1,12 +1,14 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { resolve } from 'node:path';
 
 // Publishing is retriable: a previous successful npm upload must match this exact artifact.
-const [tarball, version] = process.argv.slice(2);
-if (!tarball || !/^\d+\.\d+\.\d+$/.test(version ?? '')) {
+const [input, version] = process.argv.slice(2);
+if (!input || !/^\d+\.\d+\.\d+$/.test(version ?? '')) {
   throw new Error('Expected tarball and exact release version');
 }
+const tarball = resolve(input);
 if (process.env.NODE_AUTH_TOKEN || process.env.NPM_TOKEN) {
   throw new Error('Token authentication is forbidden; configure npm trusted publishing');
 }
