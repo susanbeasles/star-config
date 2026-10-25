@@ -48,9 +48,9 @@ export const NPM_DEV = /** @type {const} */ ({
   // renovate: datasource=npm depName=typescript
   typescript: '6.0.3',
   // renovate: datasource=npm depName=vitest
-  vitest: '5.0.4',
+  vitest: '5.0.5',
   // renovate: datasource=npm depName=@vitest/coverage-v8
-  '@vitest/coverage-v8': '5.0.4',
+  '@vitest/coverage-v8': '5.0.5',
   // renovate: datasource=npm depName=@playwright/test
   '@playwright/test': '1.64.1',
   // renovate: datasource=npm depName=esbuild
