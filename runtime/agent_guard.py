@@ -209,6 +209,8 @@ def own_snapshot(root):
     # The containing job directory stays root-only; the sandbox sees only /work.
     for directory, _directories, files in os.walk(root, followlinks=False):
         os.chown(directory, 65532, 65532, follow_symlinks=False)
+        # Directories need owner traversal; group and others receive no permissions.
+        # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions  # noqa: ERA001
         os.chmod(directory, 0o700)
         for name in files:
             os.chown(Path(directory) / name, 65532, 65532, follow_symlinks=False)
