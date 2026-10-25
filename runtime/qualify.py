@@ -61,12 +61,14 @@ def run(args, *, cwd=None, data=None, user=False, **options):
 
 
 def write(file, content, executable=False):
+    if not file.is_relative_to(FIXTURE / "checkout"):
+        raise ValueError("Fixture writes must stay inside the worker checkout")
     file.parent.mkdir(parents=True, exist_ok=True)
     file.write_text(content)
     file.chmod(0o755 if executable else 0o644)
     os.chown(file, UID, UID)
     current = file.parent
-    while current != FIXTURE.parent:
+    while current != FIXTURE:
         os.chown(current, UID, UID)
         current = current.parent
 

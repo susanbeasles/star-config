@@ -310,3 +310,18 @@ def test_transient_cleanup_failure_is_retried(tmp_path, monkeypatch):
     monkeypatch.setattr(guard, "command", cleanup)
     assert guard.run_container([], b"", "synthetic", tmp_path / "output") == 1
     assert len(attempts) == 2
+
+
+def test_qualification_never_gives_the_worker_control_of_the_checkout_parent(tmp_path, monkeypatch):
+    fixture = tmp_path / "fixture"
+    fixture.mkdir()
+    monkeypatch.setattr(qualify, "FIXTURE", fixture)
+    changed = []
+    monkeypatch.setattr(qualify.os, "chown", lambda file, *args: changed.append(file))
+    target = fixture / "checkout/subdirectory/file"
+    qualify.write(target, "synthetic")
+    assert fixture not in changed
+    assert fixture / "checkout" in changed
+    assert target.read_text() == "synthetic"
+    with pytest.raises(ValueError, match="worker checkout"):
+        qualify.write(fixture / "outside", "refused")
